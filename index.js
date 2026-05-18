@@ -17,10 +17,8 @@ const supabase = createClient(
 
 const upload = multer({ dest: '/tmp/uploads/' });
 
-// Health check
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
-// Get all athletes
 app.get('/athletes', async (req, res) => {
   try {
     const { data, error } = await supabase.from('athletes').select('*');
@@ -31,7 +29,6 @@ app.get('/athletes', async (req, res) => {
   }
 });
 
-// Get all flags
 app.get('/flags', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -46,7 +43,6 @@ app.get('/flags', async (req, res) => {
   }
 });
 
-// Upload page
 app.get('/upload', (req, res) => {
   res.send(`
     <html>
@@ -65,10 +61,10 @@ app.get('/upload', (req, res) => {
     </head>
     <body>
       <h2>1080 Motion Import</h2>
-      <p>Upload an Excel export from your 1080 Sprint or Quantum software. Athletes must already exist in Supabase.</p>
+      <p>Upload an Excel export from your 1080 Sprint or Quantum software.</p>
       <form id="form">
         <input type="file" id="file" accept=".xlsx,.csv" required>
-        <button type="submit">Upload & Import</button>
+        <button type="submit">Upload and Import</button>
       </form>
       <div id="result"></div>
       <script>
@@ -89,14 +85,15 @@ app.get('/upload', (req, res) => {
               el.textContent = 'Error: ' + data.error;
             } else {
               el.className = 'success';
-              el.textContent = data.saved + ' records imported successfully. ' + data.skipped + ' skipped (athlete not found).';
+              el.textContent = data.saved + ' records imported. ' + data.skipped + ' skipped.';
             }
           } catch(err) {
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('result').className = 'error';
-            document.getElementById('result').textContent = 'Upload failed: ' + err.message;
+            const el = document.getElementById('result');
+            el.style.display = 'block';
+            el.className = 'error';
+            el.textContent = 'Upload failed: ' + err.message;
           }
-          btn.textContent = 'Upload & Import';
+          btn.textContent = 'Upload and Import';
           btn.disabled = false;
         };
       </script>
@@ -105,15 +102,12 @@ app.get('/upload', (req, res) => {
   `);
 });
 
-// Import 1080 Motion file
 app.post('/import/1080', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
   try {
     const wb = XLSX.readFile(req.file.path);
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws);
-
     let saved = 0;
     let skipped = 0;
     const cache = {};
@@ -126,18 +120,16 @@ app.post('/import/1080', upload.single('file'), async (req, res) => {
     for (const row of rows) {
       const clientName = row['Client'];
       if (!clientName) continue;
-
       if (!cache[clientName]) {
         const parts = clientName.trim().split(/\s+/);
         const { data } = await supabase
           .from('athletes')
-          .select('id, first_name, last_name')
+          .select('id')
           .ilike('first_name', `${parts[0]}%`)
           .ilike('last_name', `${parts.slice(1).join(' ')}%`)
           .limit(1);
         cache[clientName] = data?.[0] ?? null;
       }
-
       const athlete = cache[clientName];
       if (!athlete) { skipped++; continue; }
 
@@ -178,7 +170,6 @@ app.post('/import/1080', upload.single('file'), async (req, res) => {
 
     fs.unlinkSync(req.file.path);
     res.json({ saved, skipped, total: rows.length });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
