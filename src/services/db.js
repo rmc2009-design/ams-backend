@@ -10,7 +10,7 @@ const supabase = createClient(
 async function getAllAthletes() {
   const { data, error } = await supabase
     .from('athletes')
-    .select('*, athlete_platform_ids(*)')
+    .select('*')
     .eq('active', true)
     .order('last_name');
   if (error) throw error;
