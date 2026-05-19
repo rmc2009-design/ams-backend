@@ -52,7 +52,7 @@ app.get('/api/loads/recent', async function(req, res) {
 
 app.get('/api/sprints/recent', async function(req, res) {
   try {
-    const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const monthAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('sprint_records')
       .select('*, athletes(first_name, last_name)')
