@@ -151,8 +151,46 @@ async function updateAsymmetryForAthlete(athleteId) {
 
   for (var i = 0; i < sessionDates.length; i++) {
     var date = sessionDates[i];
-    var rows = sessions[date];
-    var results = processSessionReps(rows);
+    try {
+      var rows = sessions[date];
+      var results = processSessionReps(rows);
+
+      for (var j = 0; j < results.length; j++) {
+        var result = results[j];
+
+        const { data: normData } = await supabase
+          .from('athlete_norms')
+          .select('*')
+          .eq('athlete_id', athleteId)
+          .eq('exercise', result.exercise)
+          .eq('direction', result.direction)
+          .eq('metric', 'asymmetry_pct')
+          .maybeSingle();
+
+        var flag = getFlagColor(result.asymmetry_pct, normData);
+
+        await supabase
+          .from('session_asymmetry')
+          .upsert({
+            athlete_id: athleteId,
+            session_date: date,
+            exercise: result.exercise,
+            direction: result.direction,
+            left_peak_force_n: result.left_peak_force_n,
+            right_peak_force_n: result.right_peak_force_n,
+            asymmetry_pct: result.asymmetry_pct,
+            flag_color: flag.color,
+            sd_from_norm: flag.sd,
+            session_count_at_calc: normData ? normData.session_count : 0,
+          }, { onConflict: 'athlete_id,session_date,exercise,direction' });
+      }
+
+      await updateNormsForAthlete(athleteId);
+      console.log('Processed session ' + date + ' for athlete ' + athleteId);
+    } catch (sessionErr) {
+      console.error('Failed session ' + date + ' for athlete ' + athleteId + ': ' + sessionErr.message);
+    }
+  }
 
     for (var j = 0; j < results.length; j++) {
       var result = results[j];
