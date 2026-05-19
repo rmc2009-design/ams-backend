@@ -278,7 +278,7 @@ async function loadDashboard(){
   if(!flags.length){df.innerHTML='<div class="empty">No active flags</div>';}
   else{df.innerHTML=flags.slice(0,5).map(f=>{
     const name=f.athletes?f.athletes.first_name+' '+f.athletes.last_name:'Unknown';
-    const icon=f.severity==='critical'?'🔴':f.severity==='warning'?'🟡':'🔵';
+   const icon=f.severity==='critical'?'!!':f.severity==='warning'?'!':'-';
     return '<div class="flag-row"><div class="flag-icon">'+icon+'</div><div class="flag-body"><div class="flag-name">'+name+'</div><div class="flag-msg">'+f.message+'</div><div class="flag-time">'+timeAgo(f.created_at)+'</div></div></div>';
   }).join('');}
   const dl=document.getElementById('dash-loads');
