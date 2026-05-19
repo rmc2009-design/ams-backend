@@ -97,8 +97,8 @@ async function updateAsymmetryForAthlete(athleteId) {
     .from('sprint_records')
     .select('*')
     .eq('athlete_id', athleteId)
-    .order('session_date', { ascending: true });
-
+    .order('session_date', { ascending: true })
+    .limit(10000);
   if (recordsResult.error) throw recordsResult.error;
   if (!recordsResult.data.length) return;
 
