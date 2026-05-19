@@ -52,12 +52,12 @@ function processSessionReps(rows) {
   rows.forEach(function(row) {
     if (!row.exercise || !row.direction || !row.side) return;
     var key = row.exercise + '|' + row.direction;
-    if (!groups[key]) groups[key] = { left: {}, right: {} };
+    if (!groups[key]) groups[key] = { left: [], right: [] };
     var side = row.side.toLowerCase();
     if (side !== 'left' && side !== 'right') return;
-    var repKey = (row.set_number || 0) + '_' + (row.rep_number || 0);
-    if (!groups[key][side][repKey]) groups[key][side][repKey] = 0;
-    groups[key][side][repKey] += parseFloat(row.peak_force_n) || 0;
+    var force = parseFloat(row.peak_force_n) || 0;
+    if (force <= 0) return;
+    groups[key][side].push(force);
   });
 
   var results = [];
@@ -66,16 +66,19 @@ function processSessionReps(rows) {
     var exercise = parts[0];
     var direction = parts[1];
     var group = groups[key];
-    var leftValues = Object.values(group.left).filter(function(v) { return v > 0; });
-    var rightValues = Object.values(group.right).filter(function(v) { return v > 0; });
-    if (!leftValues.length || !rightValues.length) return;
-    var cleanLeft = removeOutliers(leftValues);
-    var cleanRight = removeOutliers(rightValues);
+
+    if (!group.left.length || !group.right.length) return;
+
+    var cleanLeft = removeOutliers(group.left);
+    var cleanRight = removeOutliers(group.right);
+
     if (!cleanLeft.length || !cleanRight.length) return;
+
     var leftPeak = Math.max.apply(null, cleanLeft);
     var rightPeak = Math.max.apply(null, cleanRight);
     var avg = (leftPeak + rightPeak) / 2;
     var asymmetry = avg > 0 ? ((leftPeak - rightPeak) / avg) * 100 : 0;
+
     results.push({
       exercise: exercise,
       direction: direction,
