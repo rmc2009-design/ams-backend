@@ -49,15 +49,20 @@ function getFlagColor(asymmetryPct, norm) {
 
 function processSessionReps(rows) {
   var groups = {};
+
   rows.forEach(function(row) {
     if (!row.exercise || !row.direction || !row.side) return;
     var key = row.exercise + '|' + row.direction;
-    if (!groups[key]) groups[key] = { left: [], right: [] };
+    if (!groups[key]) groups[key] = { left: {}, right: {} };
     var side = row.side.toLowerCase();
     if (side !== 'left' && side !== 'right') return;
     var force = parseFloat(row.peak_force_n) || 0;
     if (force <= 0) return;
-    groups[key][side].push(force);
+
+    // Combine machines by summing force for same set+rep
+    var repKey = (row.set_number || 0) + '_' + (row.rep_number || 0);
+    if (!groups[key][side][repKey]) groups[key][side][repKey] = 0;
+    groups[key][side][repKey] += force;
   });
 
   var results = [];
@@ -67,13 +72,19 @@ function processSessionReps(rows) {
     var direction = parts[1];
     var group = groups[key];
 
-    if (!group.left.length || !group.right.length) return;
+    // Convert rep maps to arrays of combined forces
+    var leftValues = Object.values(group.left).filter(function(v) { return v > 0; });
+    var rightValues = Object.values(group.right).filter(function(v) { return v > 0; });
 
-    var cleanLeft = removeOutliers(group.left);
-    var cleanRight = removeOutliers(group.right);
+    if (!leftValues.length || !rightValues.length) return;
+
+    // Remove outliers AFTER combining machines
+    var cleanLeft = removeOutliers(leftValues);
+    var cleanRight = removeOutliers(rightValues);
 
     if (!cleanLeft.length || !cleanRight.length) return;
 
+    // Take highest valid peak force per side
     var leftPeak = Math.max.apply(null, cleanLeft);
     var rightPeak = Math.max.apply(null, cleanRight);
     var avg = (leftPeak + rightPeak) / 2;
@@ -89,9 +100,9 @@ function processSessionReps(rows) {
       right_rep_count: cleanRight.length,
     });
   });
+
   return results;
 }
-
 async function updateAsymmetryForAthlete(athleteId) {
   var recordsResult = await supabase
     .from('sprint_records')
