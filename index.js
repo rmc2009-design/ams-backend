@@ -304,7 +304,7 @@ async function loadFlags(){
   if(!flags.length){el.innerHTML='<div class="empty">No active flags</div>';return;}
   el.innerHTML=flags.map(f=>{
     const name=f.athletes?f.athletes.first_name+' '+f.athletes.last_name:'Unknown';
-    const icon=f.severity==='critical'?'🔴':f.severity==='warning'?'🟡':'🔵';
+    const icon=f.severity==='critical'?'!!':f.severity==='warning'?'!':'-';
     const sc=f.severity==='critical'?'red':f.severity==='warning'?'amber':'blue';
     return '<div class="flag-row" id="flag-'+f.id+'"><div class="flag-icon">'+icon+'</div><div class="flag-body"><div class="flag-name">'+name+' '+badge(f.severity,sc)+'</div><div class="flag-msg">'+f.message+'</div><div class="flag-time">'+timeAgo(f.created_at)+' · '+(f.source||'')+'</div></div><button class="resolve-btn" onclick="resolveFlag(\''+f.id+'\')">Resolve</button></div>';
   }).join('');
