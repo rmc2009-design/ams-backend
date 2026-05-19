@@ -292,16 +292,12 @@ async function loadDashboard(){
   document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
 }
 
-async function loadRoster(){
-  const el=document.getElementById('roster-grid');
-  if(!allAthletes.length)allAthletes=await fetch('/api/athletes').then(r=>r.json());
-  if(!allAthletes.length){el.innerHTML='<div class="empty">No athletes yet.</div>';return;}
-  el.innerHTML=allAthletes.map(a=>{
-    const initials=a.first_name[0]+a.last_name[0];
-    return '<div class="athlete-card"><div class="athlete-avatar">'+initials+'</div><div class="athlete-name">'+a.first_name+' '+a.last_name+'</div><div class="athlete-meta">'+(a.sport||'')+(a.position?' · '+a.position:'')+'</div><div style="margin-top:8px">'+loadBadge(a.load_status)+'</div></div>';
-  }).join('');
-}
-
+async function loadDashboard(){
+  const [athletes,flags,loads]=await Promise.all([
+    fetch('/api/athletes').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/flags').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/loads/recent').then(r=>r.json()).catch(()=>[]),
+  ]);
 async function loadFlags(){
   const el=document.getElementById('flags-list');
   const flags=await fetch('/api/flags').then(r=>r.json());
