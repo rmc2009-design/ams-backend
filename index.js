@@ -17,6 +17,24 @@ const supabase = createClient(
 const upload = multer({ dest: '/tmp/uploads/' });
 
 // ── API routes ────────────────────────────────────────────────────────────────
+app.post('/api/reanalyze', async function(req, res) {
+  try {
+    var analysis = require('./src/services/analysis');
+    var result = await supabase.from('athletes').select('id').eq('active', true);
+    if (result.error) throw result.error;
+    var athletes = result.data;
+    res.json({ started: true, athletes: athletes.length });
+    for (var i = 0; i < athletes.length; i++) {
+      try {
+        await analysis.updateAsymmetryForAthlete(athletes[i].id);
+        console.log('Reanalyzed athlete ' + athletes[i].id);
+      } catch (e) {
+        console.error('Reanalyze error:', e.message);
+      }
+    }
+    console.log('Reanalysis complete');
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/api/athletes', async function(req, res) {
   try {
