@@ -102,20 +102,26 @@ async function updateAsymmetryForAthlete(athleteId) {
   if (recordsResult.error) throw recordsResult.error;
   if (!recordsResult.data.length) return;
 
-  var sessions = {};
+var sessions = {};
   recordsResult.data.forEach(function(r) {
     var d = r.session_date;
-    if (!sessions[d]) sessions[d] = [];
-    sessions[d].push(r);
+    if (!sessions[d]) sessions[d] = { rows: [], hasLeft: false, hasRight: false };
+    sessions[d].rows.push(r);
+    if (r.side && r.side.toLowerCase() === 'left') sessions[d].hasLeft = true;
+    if (r.side && r.side.toLowerCase() === 'right') sessions[d].hasRight = true;
   });
 
-  var sessionDates = Object.keys(sessions).sort();
-  console.log('Processing ' + sessionDates.length + ' sessions for athlete ' + athleteId);
+  // Only process sessions that have both left and right
+  var allDates = Object.keys(sessions).sort();
+  var sessionDates = allDates.filter(function(d) {
+    return sessions[d].hasLeft && sessions[d].hasRight;
+  });
+  console.log('Found ' + allDates.length + ' total sessions, ' + sessionDates.length + ' bilateral sessions for athlete ' + athleteId);
 
   for (var i = 0; i < sessionDates.length; i++) {
     var date = sessionDates[i];
     try {
-      var rows = sessions[date];
+      var rows = sessions[date].rows;
       var results = processSessionReps(rows);
 
       for (var j = 0; j < results.length; j++) {
