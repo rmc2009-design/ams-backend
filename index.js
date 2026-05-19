@@ -38,7 +38,52 @@ app.get('/api/reanalyze', async function(req, res) {
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+app.post('/import/workout', upload.single('file'), async function(req, res) {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const wb = XLSX.readFile(req.file.path);
+    var imported = 0;
+    var skipped = 0;
 
+    for (var si = 0; si < wb.SheetNames.length; si++) {
+      var sheetName = wb.SheetNames[si];
+      var ws = wb.Sheets[sheetName];
+      var data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!data.length) { skipped++; continue; }
+
+      // Create program
+      var programName = req.file.originalname.replace('.xlsx','') + ' - ' + sheetName;
+      var progResult = await supabase
+        .from('programs')
+        .upsert({ name: programName, phase: sheetName }, { onConflict: 'name' })
+        .select();
+      if (progResult.error) { skipped++; continue; }
+      var programId = progResult.data[0].id;
+
+      // Find athlete by sheet name (jersey number or last name)
+      var athleteId = null;
+      var nameParts = sheetName.trim().split(/\s+/);
+      var aResult = await supabase.from('athletes').select('id, first_name, last_name')
+        .or('last_name.ilike.' + nameParts[nameParts.length-1] + '%,jersey_number.eq.' + sheetName.trim())
+        .limit(1);
+      if (aResult.data && aResult.data[0]) {
+        athleteId = aResult.data[0].id;
+        await supabase.from('athlete_programs').upsert({
+          athlete_id: athleteId,
+          program_id: programId,
+          active: true,
+        }, { onConflict: 'athlete_id,program_id' });
+      }
+
+      imported++;
+    }
+
+    fs.unlinkSync(req.file.path);
+    res.json({ imported: imported, skipped: skipped, total: wb.SheetNames.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.get('/api/athletes', async function(req, res) {
   try {
     const { data, error } = await supabase.from('athletes').select('*').eq('active', true).order('last_name');
