@@ -17,7 +17,7 @@ const supabase = createClient(
 const upload = multer({ dest: '/tmp/uploads/' });
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.post('/api/reanalyze', async function(req, res) {
+app.get('/api/reanalyze', async function(req, res) {
   try {
     var analysis = require('./src/services/analysis');
     var result = await supabase.from('athletes').select('id').eq('active', true);
