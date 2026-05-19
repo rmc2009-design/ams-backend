@@ -20,19 +20,22 @@ const upload = multer({ dest: '/tmp/uploads/' });
 app.get('/api/reanalyze', async function(req, res) {
   try {
     var analysis = require('./src/services/analysis');
-    var result = await supabase.from('athletes').select('id').eq('active', true);
-    if (result.error) throw result.error;
-    var athletes = result.data;
-    res.json({ started: true, athletes: athletes.length });
-    for (var i = 0; i < athletes.length; i++) {
-      try {
-        await analysis.updateAsymmetryForAthlete(athletes[i].id);
-        console.log('Reanalyzed athlete ' + athletes[i].id);
-      } catch (e) {
-        console.error('Reanalyze error:', e.message);
+    var athleteId = req.query.athlete_id || null;
+    if (athleteId) {
+      await analysis.updateAsymmetryForAthlete(athleteId);
+      res.json({ done: true, athlete_id: athleteId });
+    } else {
+      var result = await supabase.from('athletes').select('id').eq('active', true);
+      if (result.error) throw result.error;
+      res.json({ started: true, athletes: result.data.length });
+      for (var i = 0; i < result.data.length; i++) {
+        try {
+          await analysis.updateAsymmetryForAthlete(result.data[i].id);
+        } catch (e) {
+          console.error('Reanalyze error:', e.message);
+        }
       }
     }
-    console.log('Reanalysis complete');
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
