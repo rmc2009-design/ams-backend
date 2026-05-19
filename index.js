@@ -16,7 +16,122 @@ const supabase = createClient(
 
 const upload = multer({ dest: '/tmp/uploads/' });
 
-// ── API routes ────────────────────────────────────────────────────────────────
+// ── API: Athletes ─────────────────────────────────────────────────────────────
+app.get('/api/athletes', async function(req, res) {
+  try {
+    var r = await supabase.from('athletes').select('*').eq('active', true).order('last_name');
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Flags ────────────────────────────────────────────────────────────────
+app.get('/api/flags', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_flags')
+      .select('*, athletes(first_name, last_name)')
+      .eq('resolved', false)
+      .order('created_at', { ascending: false });
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/flags/:id/resolve', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_flags')
+      .update({ resolved: true, resolved_at: new Date().toISOString(), resolved_by: 'coach' })
+      .eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Load records ─────────────────────────────────────────────────────────
+app.get('/api/loads/recent', async function(req, res) {
+  try {
+    var weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    var r = await supabase.from('load_records')
+      .select('*, athletes(first_name, last_name)')
+      .gte('session_date', weekAgo)
+      .order('session_date', { ascending: false })
+      .limit(20);
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Sprints ──────────────────────────────────────────────────────────────
+app.get('/api/sprints/recent', async function(req, res) {
+  try {
+    var yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+    var r = await supabase.from('sprint_records')
+      .select('*, athletes(first_name, last_name)')
+      .gte('session_date', yearAgo)
+      .order('session_date', { ascending: false })
+      .limit(50);
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Analysis ─────────────────────────────────────────────────────────────
+app.get('/api/analysis', async function(req, res) {
+  try {
+    var aid = req.query.athlete_id || null;
+    var q = supabase.from('session_asymmetry')
+      .select('*, athletes(first_name, last_name)')
+      .order('session_date', { ascending: false })
+      .limit(200);
+    if (aid) q = q.eq('athlete_id', aid);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/norms', async function(req, res) {
+  try {
+    var aid = req.query.athlete_id || null;
+    var q = supabase.from('athlete_norms').select('*, athletes(first_name, last_name)');
+    if (aid) q = q.eq('athlete_id', aid);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Programs ─────────────────────────────────────────────────────────────
+app.get('/api/programs', async function(req, res) {
+  try {
+    var aid = req.query.athlete_id || null;
+    if (aid) {
+      var r = await supabase.from('athlete_programs')
+        .select('*, programs(*)')
+        .eq('athlete_id', aid)
+        .eq('active', true);
+      if (r.error) throw r.error;
+      res.json(r.data);
+    } else {
+      var r = await supabase.from('programs').select('*').order('created_at', { ascending: false });
+      if (r.error) throw r.error;
+      res.json(r.data);
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/programs/:id/days', async function(req, res) {
+  try {
+    var r = await supabase.from('program_days')
+      .select('*, workout_blocks(*, workout_exercises(*, workout_progressions(*)))')
+      .eq('program_id', req.params.id)
+      .order('day_order');
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── API: Reanalyze ────────────────────────────────────────────────────────────
 app.get('/api/reanalyze', async function(req, res) {
   try {
     var analysis = require('./src/services/analysis');
@@ -29,161 +144,23 @@ app.get('/api/reanalyze', async function(req, res) {
       if (result.error) throw result.error;
       res.json({ started: true, athletes: result.data.length });
       for (var i = 0; i < result.data.length; i++) {
-        try {
-          await analysis.updateAsymmetryForAthlete(result.data[i].id);
-        } catch (e) {
-          console.error('Reanalyze error:', e.message);
-        }
+        try { await analysis.updateAsymmetryForAthlete(result.data[i].id); }
+        catch (e) { console.error('Reanalyze error:', e.message); }
       }
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/import/workout', upload.single('file'), async function(req, res) {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  try {
-    const wb = XLSX.readFile(req.file.path);
-    var imported = 0;
-    var skipped = 0;
 
-    for (var si = 0; si < wb.SheetNames.length; si++) {
-      var sheetName = wb.SheetNames[si];
-      var ws = wb.Sheets[sheetName];
-      var data = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (!data.length) { skipped++; continue; }
-
-      // Create program
-      var programName = req.file.originalname.replace('.xlsx','') + ' - ' + sheetName;
-      var progResult = await supabase
-        .from('programs')
-        .upsert({ name: programName, phase: sheetName }, { onConflict: 'name' })
-        .select();
-      if (progResult.error) { skipped++; continue; }
-      var programId = progResult.data[0].id;
-
-      // Find athlete by sheet name (jersey number or last name)
-      var athleteId = null;
-      var nameParts = sheetName.trim().split(/\s+/);
-      var aResult = await supabase.from('athletes').select('id, first_name, last_name')
-        .or('last_name.ilike.' + nameParts[nameParts.length-1] + '%,jersey_number.eq.' + sheetName.trim())
-        .limit(1);
-      if (aResult.data && aResult.data[0]) {
-        athleteId = aResult.data[0].id;
-        await supabase.from('athlete_programs').upsert({
-          athlete_id: athleteId,
-          program_id: programId,
-          active: true,
-        }, { onConflict: 'athlete_id,program_id' });
-      }
-
-      imported++;
-    }
-
-    fs.unlinkSync(req.file.path);
-    res.json({ imported: imported, skipped: skipped, total: wb.SheetNames.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-app.get('/api/athletes', async function(req, res) {
-  try {
-    const { data, error } = await supabase.from('athletes').select('*').eq('active', true).order('last_name');
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/flags', async function(req, res) {
-  try {
-    const { data, error } = await supabase
-      .from('athlete_flags')
-      .select('*, athletes(first_name, last_name)')
-      .eq('resolved', false)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/loads/recent', async function(req, res) {
-  try {
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-    const { data, error } = await supabase
-      .from('load_records')
-      .select('*, athletes(first_name, last_name)')
-      .gte('session_date', weekAgo)
-      .order('session_date', { ascending: false })
-      .limit(20);
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/sprints/recent', async function(req, res) {
-  try {
-    const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
-    const { data, error } = await supabase
-      .from('sprint_records')
-      .select('*, athletes(first_name, last_name)')
-      .gte('session_date', yearAgo)
-      .order('session_date', { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/flags/:id/resolve', async function(req, res) {
-  try {
-    const { error } = await supabase
-      .from('athlete_flags')
-      .update({ resolved: true, resolved_at: new Date().toISOString(), resolved_by: 'coach' })
-      .eq('id', req.params.id);
-    if (error) throw error;
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── Analysis API ──────────────────────────────────────────────────────────────
-
-app.get('/api/analysis', async function(req, res) {
-  try {
-    var athleteId = req.query.athlete_id || null;
-    var query = supabase
-      .from('session_asymmetry')
-      .select('*, athletes(first_name, last_name)')
-      .order('session_date', { ascending: false })
-      .limit(200);
-    if (athleteId) query = query.eq('athlete_id', athleteId);
-    const { data, error } = await query;
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/norms', async function(req, res) {
-  try {
-    var athleteId = req.query.athlete_id || null;
-    var query = supabase
-      .from('athlete_norms')
-      .select('*, athletes(first_name, last_name)');
-    if (athleteId) query = query.eq('athlete_id', athleteId);
-    const { data, error } = await query;
-    if (error) throw error;
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── 1080 import ───────────────────────────────────────────────────────────────
-
+// ── Import: 1080 Motion ───────────────────────────────────────────────────────
 app.post('/import/1080', upload.single('file'), async function(req, res) {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
-    const wb = XLSX.readFile(req.file.path);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws);
+    var wb = XLSX.readFile(req.file.path);
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws);
     var saved = 0, skipped = 0;
     var cache = {};
-    var affectedAthletes = {};
+    var affected = {};
 
     function excelDateToISO(serial) {
       return new Date((serial - 25569) * 86400 * 1000).toISOString().split('T')[0];
@@ -195,61 +172,162 @@ app.post('/import/1080', upload.single('file'), async function(req, res) {
       if (!clientName) continue;
       if (!cache[clientName]) {
         var parts = clientName.trim().split(/\s+/);
-        var lookup = await supabase.from('athletes').select('id')
+        var lk = await supabase.from('athletes').select('id')
           .ilike('first_name', parts[0] + '%')
           .ilike('last_name', parts.slice(1).join(' ') + '%')
           .limit(1);
-        cache[clientName] = (lookup.data && lookup.data[0]) ? lookup.data[0] : null;
+        cache[clientName] = (lk.data && lk.data[0]) ? lk.data[0] : null;
       }
       var athlete = cache[clientName];
       if (!athlete) { skipped++; continue; }
-
       var sessionDate = row['SessionTime'] ? excelDateToISO(row['SessionTime']) : new Date().toISOString().split('T')[0];
-      var result = await supabase.from('sprint_records').insert({
+      var ins = await supabase.from('sprint_records').insert({
         athlete_id: athlete.id, source: '1080motion', session_date: sessionDate,
         source_file: req.file.originalname,
-        exercise: row['Exercise'] || null,
-        exercise_type: row['ExerciseType'] || null,
-        set_number: row['SetNumber'] || null,
-        rep_number: row['RepNumber'] || null,
-        direction: row['Direction'] || null,
-        side: row['Side'] || null,
+        exercise: row['Exercise'] || null, exercise_type: row['ExerciseType'] || null,
+        set_number: row['SetNumber'] || null, rep_number: row['RepNumber'] || null,
+        direction: row['Direction'] || null, side: row['Side'] || null,
         concentric_load_kg: row['Concentric Load [kg]'] || null,
         eccentric_load_kg: row['Eccentric Load [kg]'] || null,
-        distance_m: row['Distance [m]'] || null,
-        time_s: row['Time [s]'] || null,
-        avg_speed_ms: row['AvgSpeed [m/s]'] || null,
-        peak_velocity_ms: row['PeakSpeed [m/s]'] || null,
-        avg_force_n: row['AvgForce [N]'] || null,
-        peak_force_n: row['PeakForce [N]'] || null,
-        avg_power_w: row['AvgPower [W]'] || null,
-        peak_power_w: row['PeakPower [W]'] || null,
-        bodyweight_kg: row['Client Weight [kg]'] || null,
-        raw_payload: row,
+        distance_m: row['Distance [m]'] || null, time_s: row['Time [s]'] || null,
+        avg_speed_ms: row['AvgSpeed [m/s]'] || null, peak_velocity_ms: row['PeakSpeed [m/s]'] || null,
+        avg_force_n: row['AvgForce [N]'] || null, peak_force_n: row['PeakForce [N]'] || null,
+        avg_power_w: row['AvgPower [W]'] || null, peak_power_w: row['PeakPower [W]'] || null,
+        bodyweight_kg: row['Client Weight [kg]'] || null, raw_payload: row,
       });
-      if (result.error) console.error('Row error:', result.error.message);
-      else { saved++; affectedAthletes[athlete.id] = true; }
+      if (ins.error) console.error('Row error:', ins.error.message);
+      else { saved++; affected[athlete.id] = true; }
     }
 
     fs.unlinkSync(req.file.path);
 
-    // Run analysis for each affected athlete
-    var athleteIds = Object.keys(affectedAthletes);
-    for (var k = 0; k < athleteIds.length; k++) {
+    var ids = Object.keys(affected);
+    for (var k = 0; k < ids.length; k++) {
       try {
         var analysis = require('./src/services/analysis');
-        await analysis.updateAsymmetryForAthlete(athleteIds[k]);
-      } catch (e) {
-        console.error('Analysis error for ' + athleteIds[k] + ':', e.message);
-      }
+        await analysis.updateAsymmetryForAthlete(ids[k]);
+      } catch (e) { console.error('Analysis error:', e.message); }
     }
 
     res.json({ saved: saved, skipped: skipped, total: rows.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Dashboard HTML ────────────────────────────────────────────────────────────
+// ── Import: Workout Program ───────────────────────────────────────────────────
+app.post('/import/workout', upload.single('file'), async function(req, res) {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    var wb = XLSX.readFile(req.file.path);
+    var imported = 0, skipped = 0;
 
+    for (var si = 0; si < wb.SheetNames.length; si++) {
+      var sheetName = wb.SheetNames[si];
+      var ws = wb.Sheets[sheetName];
+      var data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!data.length) { skipped++; continue; }
+
+      var programName = req.file.originalname.replace('.xlsx', '') + ' - ' + sheetName;
+      var progR = await supabase.from('programs')
+        .upsert({ name: programName, phase: sheetName, weeks: 4 }, { onConflict: 'name' })
+        .select();
+      if (progR.error) { skipped++; continue; }
+      var programId = progR.data[0].id;
+
+      // Try to find athlete by sheet name
+      var nameParts = sheetName.trim().split(/\s+/);
+      var aR = await supabase.from('athletes').select('id')
+        .or('last_name.ilike.' + nameParts[nameParts.length - 1] + '%,jersey_number.eq.' + sheetName.trim())
+        .limit(1);
+      if (aR.data && aR.data[0]) {
+        await supabase.from('athlete_programs').upsert({
+          athlete_id: aR.data[0].id,
+          program_id: programId,
+          active: true,
+        }, { onConflict: 'athlete_id,program_id' });
+      }
+
+      // Create training days
+      var dayNames = ['Monday', 'Wednesday', 'Friday', 'Conditioning'];
+      for (var d = 0; d < dayNames.length; d++) {
+        var dayR = await supabase.from('program_days')
+          .upsert({ program_id: programId, day_name: dayNames[d], day_order: d + 1, day_type: 'strength' }, { onConflict: 'program_id,day_name' })
+          .select();
+        if (dayR.error) continue;
+        var dayId = dayR.data[0].id;
+
+        // Find rows belonging to this day
+        var inDay = false;
+        var dayRows = [];
+        for (var r = 0; r < data.length; r++) {
+          var rowVals = Object.values(data[r]).map(function(v) { return String(v || '').trim(); });
+          if (rowVals.indexOf(dayNames[d]) !== -1) { inDay = true; continue; }
+          if (inDay && d < dayNames.length - 1 && rowVals.indexOf(dayNames[d + 1]) !== -1) { inDay = false; break; }
+          if (inDay) dayRows.push(data[r]);
+        }
+
+        // Group into blocks by label (1A, 1B, 2A etc)
+        var blocks = {};
+        var blockOrderMap = {};
+        var blockCount = 0;
+        for (var r = 0; r < dayRows.length; r++) {
+          var vals = Object.values(dayRows[r]);
+          var exName = null;
+          for (var v = 0; v < Math.min(vals.length, 5); v++) {
+            var sv = String(vals[v] || '').trim();
+            if (sv && sv.length > 2) { exName = sv; break; }
+          }
+          if (!exName) continue;
+          var match = exName.match(/^(\d+)([A-Za-z])\)/);
+          var blockKey = match ? match[1] : 'misc';
+          if (!blocks[blockKey]) { blocks[blockKey] = []; blockOrderMap[blockKey] = ++blockCount; }
+          blocks[blockKey].push({ name: exName, vals: vals });
+        }
+
+        for (var bk in blocks) {
+          var blkR = await supabase.from('workout_blocks')
+            .upsert({ day_id: dayId, block_label: bk, block_order: blockOrderMap[bk], block_type: bk === 'misc' ? 'straight' : 'superset' }, { onConflict: 'day_id,block_label' })
+            .select();
+          if (blkR.error) continue;
+          var blockId = blkR.data[0].id;
+
+          for (var e = 0; e < blocks[bk].length; e++) {
+            var ex = blocks[bk][e];
+            var cleanName = ex.name.replace(/^\d+[A-Za-z]\)\s*/, '').trim();
+            var sets = null, tempo = null, rest = null;
+            for (var v = 0; v < ex.vals.length; v++) {
+              var sv = String(ex.vals[v] || '').trim();
+              if (!sets && sv && !isNaN(sv) && parseFloat(sv) >= 1 && parseFloat(sv) <= 10) sets = parseFloat(sv);
+              if (!tempo && sv.match(/^\d+[\./]\d+/)) tempo = sv;
+              if (!rest && sv.match(/^:?\d+$/) && parseInt(sv.replace(':', '')) <= 300) rest = sv;
+            }
+            var exR = await supabase.from('workout_exercises')
+              .upsert({ block_id: blockId, exercise_name: cleanName, exercise_order: e + 1, sets: sets, tempo: tempo, rest: rest }, { onConflict: 'block_id,exercise_name' })
+              .select();
+            if (exR.error) continue;
+            var exId = exR.data[0].id;
+
+            for (var w = 1; w <= 4; w++) {
+              var repIdx = 4 + (w - 1) * 2;
+              var reps = ex.vals[repIdx] ? String(ex.vals[repIdx]).trim() : null;
+              var wt = ex.vals[repIdx + 1] ? String(ex.vals[repIdx + 1]).trim() : null;
+              if (reps) {
+                await supabase.from('workout_progressions').upsert({
+                  workout_exercise_id: exId, week_number: w, reps: reps, weight: wt,
+                }, { onConflict: 'workout_exercise_id,week_number' });
+              }
+            }
+          }
+        }
+      }
+      imported++;
+    }
+
+    fs.unlinkSync(req.file.path);
+    res.json({ imported: imported, skipped: skipped, total: wb.SheetNames.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Dashboard HTML ────────────────────────────────────────────────────────────
 app.get('/', function(req, res) {
   res.send('<html><head><meta charset="UTF-8"><title>AMS</title>'
   + '<style>'
@@ -257,7 +335,7 @@ app.get('/', function(req, res) {
   + 'body { font-family:Arial,sans-serif; background:#f8fafc; }'
   + '.top { background:#0f172a; color:white; padding:14px 24px; display:flex; justify-content:space-between; align-items:center; }'
   + '.top h1 { font-size:15px; }'
-  + '.nav { background:white; border-bottom:1px solid #e2e8f0; padding:0 24px; display:flex; }'
+  + '.nav { background:white; border-bottom:1px solid #e2e8f0; padding:0 24px; display:flex; flex-wrap:wrap; }'
   + '.nav button { padding:12px 14px; font-size:13px; border:none; background:none; cursor:pointer; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }'
   + '.nav button.on { color:#0f172a; border-bottom-color:#2563eb; font-weight:700; }'
   + '.wrap { padding:24px; max-width:1300px; margin:0 auto; }'
@@ -274,7 +352,7 @@ app.get('/', function(req, res) {
   + '.b { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }'
   + '.r { background:#fee2e2; color:#991b1b; } .a { background:#fef3c7; color:#92400e; }'
   + '.g { background:#dcfce7; color:#166534; } .bl { background:#dbeafe; color:#1e40af; } .gr { background:#f1f5f9; color:#475569; }'
-  + '.tl { display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:middle; margin-right:5px; }'
+  + '.tl { display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:middle; margin-right:4px; }'
   + '.tl-red { background:#ef4444; } .tl-yellow { background:#f59e0b; } .tl-green { background:#22c55e; } .tl-gray { background:#cbd5e1; }'
   + '.fi { padding:10px 0; border-bottom:1px solid #f1f5f9; }'
   + '.fn { font-size:13px; font-weight:600; } .fm { font-size:12px; color:#64748b; } .ft { font-size:11px; color:#94a3b8; }'
@@ -283,7 +361,7 @@ app.get('/', function(req, res) {
   + '.av { width:38px; height:38px; border-radius:50%; background:#dbeafe; color:#1e40af; display:flex; align-items:center; justify-content:center; font-weight:700; margin-bottom:8px; }'
   + '.pg { display:none; } .pg.on { display:block; }'
   + '.two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }'
-  + '.ub { border:2px dashed #e2e8f0; border-radius:8px; padding:28px; text-align:center; }'
+  + '.ub { border:2px dashed #e2e8f0; border-radius:8px; padding:28px; text-align:center; margin-bottom:16px; }'
   + '.ub p { color:#64748b; font-size:13px; margin-bottom:14px; }'
   + '.btn { background:#2563eb; color:white; border:none; padding:9px 18px; border-radius:6px; cursor:pointer; font-size:13px; }'
   + '.mt { margin-top:12px; padding:12px; border-radius:6px; display:none; font-size:13px; }'
@@ -292,10 +370,14 @@ app.get('/', function(req, res) {
   + '.em { text-align:center; padding:28px; color:#94a3b8; font-size:13px; }'
   + '.rb { font-size:11px; padding:3px 10px; border:1px solid #e2e8f0; border-radius:5px; cursor:pointer; background:white; float:right; }'
   + '.sel { padding:7px 12px; font-size:13px; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:16px; }'
-  + '.norm-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }'
-  + '.norm-row:last-child { border-bottom:none; }'
-  + '.asym-bar { height:8px; border-radius:4px; display:inline-block; }'
+  + '.day-header { font-weight:700; font-size:15px; padding:10px 0 8px; border-bottom:2px solid #2563eb; margin-bottom:14px; color:#0f172a; }'
+  + '.block-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin:14px 0 6px; }'
+  + '.prog-item { padding:10px 12px; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:8px; cursor:pointer; }'
+  + '.prog-item:hover { background:#f8fafc; }'
+  + '.prog-name { font-size:13px; font-weight:600; }'
+  + '.prog-meta { font-size:12px; color:#64748b; margin-top:2px; }'
   + '</style></head><body>'
+
   + '<div class="top"><h1>Athlete Management System</h1><span id="upd" style="font-size:12px;color:#94a3b8">Loading...</span></div>'
   + '<div class="nav">'
   + '<button class="on" onclick="sp(\'d\',this)">Dashboard</button>'
@@ -304,10 +386,12 @@ app.get('/', function(req, res) {
   + '<button onclick="sp(\'l\',this)">Load Records</button>'
   + '<button onclick="sp(\'s\',this)">1080 Motion</button>'
   + '<button onclick="sp(\'an\',this)">Analysis</button>'
+  + '<button onclick="sp(\'w\',this)">Workouts</button>'
   + '<button onclick="sp(\'i\',this)">Import Data</button>'
   + '</div>'
   + '<div class="wrap">'
 
+  // Dashboard
   + '<div class="pg on" id="pd">'
   + '<div class="metrics" id="mg"><div class="em">Loading...</div></div>'
   + '<div class="two">'
@@ -315,48 +399,82 @@ app.get('/', function(req, res) {
   + '<div class="card"><h3>Recent Sessions</h3><div id="dl"><div class="em">Loading...</div></div></div>'
   + '</div></div>'
 
+  // Roster
   + '<div class="pg" id="pr"><div class="ag" id="rg"><div class="em">Loading...</div></div></div>'
 
+  // Flags
   + '<div class="pg" id="pf"><div class="card"><h3>Unresolved Flags</h3><div id="fl"><div class="em">Loading...</div></div></div></div>'
 
+  // Load Records
   + '<div class="pg" id="pl"><div class="card"><h3>Load Records - Last 7 Days</h3><div id="lc"><div class="em">Loading...</div></div></div></div>'
 
+  // 1080 Motion
   + '<div class="pg" id="ps"><div class="card"><h3>1080 Motion - Last 12 Months</h3><div id="sc"><div class="em">Loading...</div></div></div></div>'
 
+  // Analysis
   + '<div class="pg" id="pan">'
-  + '<div class="card">'
-  + '<h3>Split Squat L/R Asymmetry Analysis</h3>'
+  + '<div class="card"><h3>Split Squat L/R Asymmetry Analysis</h3>'
   + '<select id="an-athlete" class="sel" onchange="la()"><option value="">All athletes</option></select>'
   + '<div id="an-content"><div class="em">Loading...</div></div>'
   + '</div>'
-  + '<div class="card" id="norm-card" style="display:none">'
-  + '<h3>Athlete Norms</h3>'
-  + '<div id="norm-content"></div>'
+  + '<div class="card" id="norm-card" style="display:none"><h3>Athlete Norms</h3><div id="norm-content"></div></div>'
+  + '</div>'
+
+  // Workouts
+  + '<div class="pg" id="pw">'
+  + '<div class="two">'
+  + '<div class="card"><h3>Programs</h3>'
+  + '<select id="w-athlete" class="sel" onchange="loadPrograms()"><option value="">Select athlete...</option></select>'
+  + '<div id="programs-list"><div class="em">Select an athlete to see their programs.</div></div>'
+  + '</div>'
+  + '<div class="card" id="program-detail" style="display:none">'
+  + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+  + '<h3 id="program-title" style="margin-bottom:0">Program</h3>'
+  + '<select id="week-select" class="sel" style="margin-bottom:0" onchange="reloadWeek()">'
+  + '<option value="1">Week 1</option><option value="2">Week 2</option>'
+  + '<option value="3">Week 3</option><option value="4">Week 4</option>'
+  + '</select>'
+  + '</div>'
+  + '<div id="program-days"></div>'
+  + '</div>'
   + '</div>'
   + '</div>'
 
-  + '<div class="pg" id="pi"><div class="card"><h3>Import 1080 Motion Data</h3>'
+  // Import
+  + '<div class="pg" id="pi">'
+  + '<div class="card"><h3>Import 1080 Motion Data</h3>'
   + '<div class="ub"><p>Upload an Excel export from your 1080 Sprint or Quantum.<br>Athletes must already be in the database.</p>'
   + '<input type="file" id="if2" accept=".xlsx,.csv" style="margin-bottom:14px"><br>'
   + '<button class="btn" onclick="di()">Upload and Import</button></div>'
-  + '<div id="im" class="mt"></div></div></div>'
+  + '<div id="im" class="mt"></div>'
+  + '</div>'
+  + '<div class="card"><h3>Import Workout Program</h3>'
+  + '<div class="ub"><p>Upload your Google Sheets workout Excel file.<br>Each tab will be imported as a separate program and linked to the athlete.</p>'
+  + '<input type="file" id="wf" accept=".xlsx" style="margin-bottom:14px"><br>'
+  + '<button class="btn" onclick="diw()">Upload Workout Program</button></div>'
+  + '<div id="wm" class="mt"></div>'
+  + '</div>'
+  + '</div>'
 
   + '</div>'
   + '<script>'
-  + 'var allAthletes=[];'
+
+  + 'var allAthletes=[];var currentProgramId=null;'
+
   + 'function sp(n,b){'
   + '  var ps=document.querySelectorAll(".pg");for(var i=0;i<ps.length;i++)ps[i].classList.remove("on");'
   + '  var bs=document.querySelectorAll(".nav button");for(var i=0;i<bs.length;i++)bs[i].classList.remove("on");'
   + '  document.getElementById("p"+n).classList.add("on");b.classList.add("on");'
-  + '  if(n=="r")lr();if(n=="f")lf();if(n=="l")ll();if(n=="s")ls();if(n=="an")initAnalysis();'
+  + '  if(n=="r")lr();if(n=="f")lf();if(n=="l")ll();if(n=="s")ls();'
+  + '  if(n=="an")initAnalysis();if(n=="w")initWorkouts();'
   + '}'
+
   + 'function bx(t,c){return\'<span class="b \'+c+\'">\'+t+"</span>";}'
   + 'function lb(s){if(s=="High")return bx(s,"r");if(s=="Low")return bx(s,"g");if(s=="Injured")return bx(s,"a");return bx(s,"bl");}'
   + 'function ta(iso){var h=Math.floor((Date.now()-new Date(iso))/3600000);if(h<1)return"just now";if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";}'
-  + 'function tlDot(color){'
-  + '  var cls=color==="red"?"tl-red":color==="yellow"?"tl-yellow":color==="green"?"tl-green":"tl-gray";'
-  + '  return\'<span class="tl \'+cls+\'"></span>\';'
-  + '}'
+  + 'function tlDot(c){var cl=c=="red"?"tl-red":c=="yellow"?"tl-yellow":c=="green"?"tl-green":"tl-gray";return\'<span class="tl \'+cl+\'"></span>\';}'
+
+  // Dashboard
   + 'function ld(){'
   + '  fetch("/api/athletes").then(function(r){return r.json();}).then(function(at){'
   + '    allAthletes=at;'
@@ -370,22 +488,26 @@ app.get('/', function(req, res) {
   + '        for(var i=0;i<data.length;i++){var d=document.createElement("div");d.className="metric";d.innerHTML=\'<div class="metric-label">\'+data[i][0]+\'</div><div class="metric-val"\'+(data[i][2]?\' style="color:\'+data[i][2]+\'"\':"")+">"+data[i][1]+"</div>";mg.appendChild(d);}'
   + '        var df=document.getElementById("df");'
   + '        if(!fl.length){df.innerHTML=\'<div class="em">No active flags</div>\';}else{'
-  + '          var h2="";for(var i=0;i<Math.min(fl.length,5);i++){var f=fl[i];var nm=f.athletes?f.athletes.first_name+" "+f.athletes.last_name:"Unknown";var sc=f.severity=="critical"?"r":f.severity=="warning"?"a":"bl";h2+=\'<div class="fi"><div class="fn">\'+nm+" "+bx(f.severity,sc)+\'</div><div class="fm">\'+f.message+\'</div><div class="ft">\'+ta(f.created_at)+"</div></div>";}'
-  + '          df.innerHTML=h2;}'
+  + '          var h="";for(var i=0;i<Math.min(fl.length,5);i++){var f=fl[i];var nm=f.athletes?f.athletes.first_name+" "+f.athletes.last_name:"Unknown";var sc=f.severity=="critical"?"r":f.severity=="warning"?"a":"bl";h+=\'<div class="fi"><div class="fn">\'+nm+" "+bx(f.severity,sc)+\'</div><div class="fm">\'+f.message+\'</div><div class="ft">\'+ta(f.created_at)+"</div></div>";}'
+  + '          df.innerHTML=h;}'
   + '        var dl=document.getElementById("dl");'
   + '        if(!lo.length){dl.innerHTML=\'<div class="em">No sessions this week</div>\';}else{'
-  + '          var h3=\'<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th></tr></thead><tbody>\';'
-  + '          for(var i=0;i<Math.min(lo.length,8);i++){var l=lo[i];var nm=l.athletes?l.athletes.first_name+" "+l.athletes.last_name:"Unknown";var rc=l.rpe>=9?"r":l.rpe>=7?"a":"g";h3+="<tr><td>"+nm+"</td><td>"+l.session_date+"</td><td>"+(l.session_type||"-")+"</td><td>"+(l.rpe?bx("RPE "+l.rpe,rc):"-")+"</td></tr>";}'
-  + '          dl.innerHTML=h3+"</tbody></table>";}'
+  + '          var h=\'<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th></tr></thead><tbody>\';'
+  + '          for(var i=0;i<Math.min(lo.length,8);i++){var l=lo[i];var nm=l.athletes?l.athletes.first_name+" "+l.athletes.last_name:"Unknown";var rc=l.rpe>=9?"r":l.rpe>=7?"a":"g";h+="<tr><td>"+nm+"</td><td>"+l.session_date+"</td><td>"+(l.session_type||"-")+"</td><td>"+(l.rpe?bx("RPE "+l.rpe,rc):"-")+"</td></tr>";}'
+  + '          dl.innerHTML=h+"</tbody></table>";}'
   + '        document.getElementById("upd").textContent="Updated "+new Date().toLocaleTimeString();'
   + '      });});});'
   + '}'
+
+  // Roster
   + 'function lr(){'
   + '  fetch("/api/athletes").then(function(r){return r.json();}).then(function(at){'
   + '    var el=document.getElementById("rg");if(!at.length){el.innerHTML=\'<div class="em">No athletes.</div>\';return;}'
   + '    var h="";for(var i=0;i<at.length;i++){var a=at[i];var ini=a.first_name[0]+a.last_name[0];h+=\'<div class="ac"><div class="av">\'+ini+\'</div><div style="font-weight:600;font-size:14px">\'+a.first_name+" "+a.last_name+\'</div><div style="font-size:12px;color:#64748b;margin-top:2px">\'+( a.sport||"")+(a.position?" - "+a.position:"")+\'</div><div style="margin-top:8px">\'+lb(a.load_status)+"</div></div>";}'
   + '    el.innerHTML=h;});'
   + '}'
+
+  // Flags
   + 'function lf(){'
   + '  fetch("/api/flags").then(function(r){return r.json();}).then(function(fl){'
   + '    var el=document.getElementById("fl");if(!fl.length){el.innerHTML=\'<div class="em">No active flags</div>\';return;}'
@@ -393,6 +515,8 @@ app.get('/', function(req, res) {
   + '    el.innerHTML=h;});'
   + '}'
   + 'function rf(id){fetch("/api/flags/"+id+"/resolve",{method:"PATCH"}).then(function(){var e=document.getElementById("fg"+id);if(e)e.style.display="none";});}'
+
+  // Load Records
   + 'function ll(){'
   + '  fetch("/api/loads/recent").then(function(r){return r.json();}).then(function(data){'
   + '    var el=document.getElementById("lc");if(!data.length){el.innerHTML=\'<div class="em">No load records in the last 7 days.</div>\';return;}'
@@ -400,6 +524,8 @@ app.get('/', function(req, res) {
   + '    for(var i=0;i<data.length;i++){var l=data[i];var nm=l.athletes?l.athletes.first_name+" "+l.athletes.last_name:"Unknown";var rc=l.rpe>=9?"r":l.rpe>=7?"a":"g";h+="<tr><td>"+nm+"</td><td>"+l.session_date+"</td><td>"+(l.session_type||"-")+"</td><td>"+(l.rpe?bx("RPE "+parseFloat(l.rpe).toFixed(1),rc):"-")+"</td><td>"+(l.session_load?Math.round(l.session_load)+" AU":"-")+"</td><td>"+(l.total_distance_m?Math.round(l.total_distance_m)+" m":"-")+"</td><td>"+bx(l.source,"gr")+"</td></tr>";}'
   + '    el.innerHTML=h+"</tbody></table>";});'
   + '}'
+
+  // 1080 Motion
   + 'function ls(){'
   + '  fetch("/api/sprints/recent").then(function(r){return r.json();}).then(function(data){'
   + '    var el=document.getElementById("sc");if(!data.length){el.innerHTML=\'<div class="em">No 1080 data in last 12 months.</div>\';return;}'
@@ -408,37 +534,29 @@ app.get('/', function(req, res) {
   + '    el.innerHTML=h+"</tbody></table>";});'
   + '}'
 
+  // Analysis
   + 'function initAnalysis(){'
   + '  var sel=document.getElementById("an-athlete");'
   + '  sel.innerHTML="<option value=\\"\\">All athletes</option>";'
   + '  for(var i=0;i<allAthletes.length;i++){sel.innerHTML+=\'<option value="\'+allAthletes[i].id+\'">\'+allAthletes[i].first_name+" "+allAthletes[i].last_name+"</option>";}'
   + '  la();'
   + '}'
-
   + 'function la(){'
   + '  var aid=document.getElementById("an-athlete").value;'
-  + '  var url="/api/analysis"+(aid?"?athlete_id="+aid:"");'
-  + '  fetch(url).then(function(r){return r.json();}).then(function(data){'
+  + '  fetch("/api/analysis"+(aid?"?athlete_id="+aid:"")).then(function(r){return r.json();}).then(function(data){'
   + '    var el=document.getElementById("an-content");'
   + '    if(!data.length){el.innerHTML=\'<div class="em">No analysis data yet. Import 1080 session files to generate asymmetry analysis.</div>\';return;}'
   + '    var h=\'<table><thead><tr><th>Athlete</th><th>Date</th><th>Exercise</th><th>Direction</th><th>Left Peak (N)</th><th>Right Peak (N)</th><th>Asymmetry</th><th>Flag</th><th>vs Norm</th></tr></thead><tbody>\';'
   + '    for(var i=0;i<data.length;i++){'
-  + '      var d=data[i];'
-  + '      var nm=d.athletes?d.athletes.first_name+" "+d.athletes.last_name:"Unknown";'
-  + '      var abs=Math.abs(d.asymmetry_pct);'
-  + '      var sign=d.asymmetry_pct>=0?"L dominant":"R dominant";'
-  + '      var normTxt=d.sd_from_norm!=null?(Math.abs(d.sd_from_norm).toFixed(1)+" SD from norm"):(d.session_count_at_calc<5?"Building norm ("+d.session_count_at_calc+"/5)":"Population threshold");'
-  + '      h+="<tr>"'
-  + '        +"<td>"+nm+"</td>"'
-  + '        +"<td>"+d.session_date+"</td>"'
-  + '        +"<td>"+(d.exercise||"-")+"</td>"'
-  + '        +"<td>"+(d.direction||"-")+"</td>"'
+  + '      var d=data[i];var nm=d.athletes?d.athletes.first_name+" "+d.athletes.last_name:"Unknown";'
+  + '      var abs=Math.abs(d.asymmetry_pct);var sign=d.asymmetry_pct>=0?"L dominant":"R dominant";'
+  + '      var nt=d.sd_from_norm!=null?(Math.abs(d.sd_from_norm).toFixed(1)+" SD from norm"):(d.session_count_at_calc<5?"Building norm ("+d.session_count_at_calc+"/5)":"Population threshold");'
+  + '      h+="<tr><td>"+nm+"</td><td>"+d.session_date+"</td><td>"+(d.exercise||"-")+"</td><td>"+(d.direction||"-")+"</td>"'
   + '        +"<td>"+(d.left_peak_force_n?Math.round(d.left_peak_force_n)+" N":"-")+"</td>"'
   + '        +"<td>"+(d.right_peak_force_n?Math.round(d.right_peak_force_n)+" N":"-")+"</td>"'
   + '        +"<td>"+abs.toFixed(1)+"% "+sign+"</td>"'
   + '        +"<td>"+tlDot(d.flag_color)+d.flag_color+"</td>"'
-  + '        +"<td style=\\"font-size:11px;color:#64748b\\">"+normTxt+"</td>"'
-  + '        +"</tr>";'
+  + '        +"<td style=\\"font-size:11px;color:#64748b\\">"+nt+"</td></tr>";'
   + '    }'
   + '    el.innerHTML=h+"</tbody></table>";'
   + '  });'
@@ -446,30 +564,99 @@ app.get('/', function(req, res) {
   + '    document.getElementById("norm-card").style.display="block";'
   + '    fetch("/api/norms?athlete_id="+aid).then(function(r){return r.json();}).then(function(norms){'
   + '      var nc=document.getElementById("norm-content");'
-  + '      if(!norms.length){nc.innerHTML=\'<div class="em">No norms established yet. Need 5+ sessions.</div>\';return;}'
-  + '      var h="";'
-  + '      for(var i=0;i<norms.length;i++){'
-  + '        var n=norms[i];'
-  + '        h+=\'<div class="norm-row">\'+'
-  + '          \'<strong style="min-width:120px">\'+n.exercise+\'</strong>\'+'
-  + '          \'<span style="min-width:100px;color:#64748b">\'+n.direction+\'</span>\'+'
-  + '          \'<span>Mean: <strong>\'+parseFloat(n.mean).toFixed(1)+\'%</strong></span>\'+'
-  + '          \'<span style="margin-left:16px">SD: <strong>\'+parseFloat(n.std_dev).toFixed(1)+\'%</strong></span>\'+'
-  + '          \'<span style="margin-left:16px;color:#64748b">Based on \'+n.session_count+\' sessions</span>\'+'
-  + '          \'</div>\';'
-  + '      }'
-  + '      nc.innerHTML=h;'
-  + '    });'
+  + '      if(!norms.length){nc.innerHTML=\'<div class="em">No norms yet. Need 5+ sessions.</div>\';return;}'
+  + '      var h="";for(var i=0;i<norms.length;i++){var n=norms[i];h+=\'<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:16px;font-size:13px"><strong style="min-width:120px">\'+n.exercise+\'</strong><span style="color:#64748b;min-width:100px">\'+n.direction+\'</span><span>Mean: <strong>\'+parseFloat(n.mean).toFixed(1)+\'%</strong></span><span>SD: <strong>\'+parseFloat(n.std_dev).toFixed(1)+\'%</strong></span><span style="color:#64748b">Based on \'+n.session_count+\' sessions</span></div>\';}'
+  + '      nc.innerHTML=h;});'
   + '  } else { document.getElementById("norm-card").style.display="none"; }'
   + '}'
 
+  // Workouts
+  + 'function initWorkouts(){'
+  + '  var sel=document.getElementById("w-athlete");'
+  + '  sel.innerHTML="<option value=\\"\\">Select athlete...</option>";'
+  + '  for(var i=0;i<allAthletes.length;i++){sel.innerHTML+=\'<option value="\'+allAthletes[i].id+\'">\'+allAthletes[i].first_name+" "+allAthletes[i].last_name+"</option>";}'
+  + '}'
+  + 'function loadPrograms(){'
+  + '  var aid=document.getElementById("w-athlete").value;'
+  + '  var el=document.getElementById("programs-list");'
+  + '  document.getElementById("program-detail").style.display="none";'
+  + '  if(!aid){el.innerHTML=\'<div class="em">Select an athlete to see their programs.</div>\';return;}'
+  + '  fetch("/api/programs?athlete_id="+aid).then(function(r){return r.json();}).then(function(data){'
+  + '    if(!data.length){el.innerHTML=\'<div class="em">No programs assigned yet. Import a workout file.</div>\';return;}'
+  + '    var h="";'
+  + '    for(var i=0;i<data.length;i++){'
+  + '      var p=data[i].programs||data[i];'
+  + '      h+=\'<div class="prog-item" onclick="loadProgramDetail(\\"\'+p.id+\'\\",\\"\'+p.name+\'\\")">\'+'
+  + '        \'<div class="prog-name">\'+p.name+\'</div>\'+'
+  + '        \'<div class="prog-meta">\'+( p.phase||"")+(p.weeks?" · "+p.weeks+" weeks":"")+\'</div>\'+'
+  + '        \'</div>\';'
+  + '    }'
+  + '    el.innerHTML=h;'
+  + '  });'
+  + '}'
+  + 'function loadProgramDetail(id,name){'
+  + '  currentProgramId=id;'
+  + '  document.getElementById("program-detail").style.display="block";'
+  + '  document.getElementById("program-title").textContent=name;'
+  + '  renderProgramDays(id);'
+  + '}'
+  + 'function reloadWeek(){ if(currentProgramId) renderProgramDays(currentProgramId); }'
+  + 'function renderProgramDays(id){'
+  + '  var week=parseInt(document.getElementById("week-select").value)||1;'
+  + '  fetch("/api/programs/"+id+"/days").then(function(r){return r.json();}).then(function(days){'
+  + '    var h="";'
+  + '    for(var d=0;d<days.length;d++){'
+  + '      var day=days[d];'
+  + '      h+=\'<div style="margin-bottom:28px"><div class="day-header">\'+day.day_name+\'</div>\';'
+  + '      var blocks=day.workout_blocks||[];'
+  + '      blocks.sort(function(a,b){return a.block_order-b.block_order;});'
+  + '      for(var b=0;b<blocks.length;b++){'
+  + '        var block=blocks[b];'
+  + '        var exs=block.workout_exercises||[];'
+  + '        exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});'
+  + '        if(!exs.length) continue;'
+  + '        h+=\'<div class="block-label">Block \'+block.block_label+\'</div>\'+'
+  + '          \'<table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Reps (Week \'+week+\')</th><th>Weight</th><th>Notes</th></tr></thead><tbody>\';'
+  + '        for(var e=0;e<exs.length;e++){'
+  + '          var ex=exs[e];var prog=null;'
+  + '          var progs=ex.workout_progressions||[];'
+  + '          for(var p=0;p<progs.length;p++){if(progs[p].week_number==week){prog=progs[p];break;}}'
+  + '          h+="<tr><td style=\\"font-weight:500\\">"+ex.exercise_name+"</td>"'
+  + '            +"<td>"+(ex.sets||"-")+"</td>"'
+  + '            +"<td>"+(ex.tempo||"-")+"</td>"'
+  + '            +"<td>"+(ex.rest||"-")+"</td>"'
+  + '            +"<td>"+(prog&&prog.reps?prog.reps:"-")+"</td>"'
+  + '            +"<td>"+(prog&&prog.weight?prog.weight:"-")+"</td>"'
+  + '            +"<td style=\\"font-size:12px;color:#64748b\\">"+(ex.notes||"")+"</td>"'
+  + '            +"</tr>";'
+  + '        }'
+  + '        h+="</tbody></table>";'
+  + '      }'
+  + '      h+="</div>";'
+  + '    }'
+  + '    document.getElementById("program-days").innerHTML=h||\'<div class="em">No exercises found. Import a workout file first.</div>\';'
+  + '  });'
+  + '}'
+
+  // Import 1080
   + 'function di(){'
   + '  var fi=document.getElementById("if2");if(!fi.files.length){alert("Select a file first.");return;}'
   + '  var fd=new FormData();fd.append("file",fi.files[0]);'
-  + '  var m=document.getElementById("im");m.style.display="block";m.className="mt";m.textContent="Importing and running analysis...";'
+  + '  var m=document.getElementById("im");m.style.display="block";m.className="mt";m.textContent="Importing...";'
   + '  fetch("/import/1080",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){'
   + '    if(d.error){m.className="mt er";m.textContent="Error: "+d.error;}'
-  + '    else{m.className="mt ok";m.textContent=d.saved+" records imported. "+d.skipped+" skipped. Analysis updated.";}'
+  + '    else{m.className="mt ok";m.textContent=d.saved+" records imported. "+d.skipped+" skipped.";}'
+  + '  }).catch(function(e){m.className="mt er";m.textContent="Failed: "+e.message;});'
+  + '}'
+
+  // Import Workout
+  + 'function diw(){'
+  + '  var fi=document.getElementById("wf");if(!fi.files.length){alert("Select a file first.");return;}'
+  + '  var fd=new FormData();fd.append("file",fi.files[0]);'
+  + '  var m=document.getElementById("wm");m.style.display="block";m.className="mt";m.textContent="Importing workout program...";'
+  + '  fetch("/import/workout",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(d){'
+  + '    if(d.error){m.className="mt er";m.textContent="Error: "+d.error;}'
+  + '    else{m.className="mt ok";m.textContent=d.imported+" programs imported from "+d.total+" sheets. Go to Workouts tab to view.";}'
   + '  }).catch(function(e){m.className="mt er";m.textContent="Failed: "+e.message;});'
   + '}'
 
