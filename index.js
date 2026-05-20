@@ -597,7 +597,7 @@ app.get('/', function(req, res) {
   + '}'
 
   + 'function viewAthlete(id){'
-  + '  document.querySelectorAll(".nav button")[6].click();'
+  + '  document.querySelectorAll(".nav button")'  sp("as", document.querySelectorAll(".nav button")[7]);'
   + '  document.getElementById("as-athlete").value=id;'
   + '  loadAssessment();'
   + '}'
