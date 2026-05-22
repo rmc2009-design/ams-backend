@@ -521,10 +521,10 @@ function getHTML() {
     'if(n=="an")initAnalysis();if(n=="as")initAssessments();if(n=="w")initWorkouts();',
     '}',
 
-    'function bx(t,c){return "<span class=\\"b "+c+"\\">" + t + "</span>";}',
+    'function bx(t,c){var s="<span class=";s+=\'"\';s+=\'b \';s+=c;s+=\'"\';s+=">";s+=t;s+="</span>";return s;}',
     'function lb(s){if(s=="High")return bx(s,"r");if(s=="Low")return bx(s,"g");if(s=="Injured")return bx(s,"a");return bx(s,"bl");}',
     'function ta(iso){var h=Math.floor((Date.now()-new Date(iso))/3600000);if(h<1)return"just now";if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";}',
-    'function tlDot(c){var cl=c=="red"?"tl-red":c=="yellow"?"tl-yellow":c=="green"?"tl-green":"tl-gray";return"<span class=\\"tl "+cl+"\\"></span>";}',
+    'function tlDot(c){var cl=c=="red"?"tl-red":c=="yellow"?"tl-yellow":c=="green"?"tl-green":"tl-gray";var s="<span class=";s+=\'"\';s+="tl ";s+=cl;s+=\'"\';s+="></span>";return s;}',
 
     'function pathwayLabel(p){',
     'var m={eccentric_progression:"Eccentric Progression",flywheel:"Flywheel",dual_deficit:"Dual Deficit",force_isometrics:"Force Development",speed_power:"Speed Power",timing:"Timing",peak_power:"Peak Power"};',
@@ -786,3 +786,4 @@ app.listen(PORT, function() {
   console.log('AMS running on port ' + PORT);
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'connected' : 'NOT SET'));
 });
+
