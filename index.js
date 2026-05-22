@@ -353,15 +353,6 @@ function getHTML() {
     + '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:10px 0 6px">ROM</div>'
     + '<div class="form-row"><div class="form-group"><label>IR ROM Left (deg)</label><input type="number" id="as-ir-rom-l" class="inp" placeholder="threshold 35"></div>'
     + '<div class="form-group"><label>IR ROM Right (deg)</label><input type="number" id="as-ir-rom-r" class="inp" placeholder="threshold 35"></div></div>'
-    + '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:10px 0 6px">1080 Split Squat</div>'
-    + '<div class="form-row"><div class="form-group"><label>Peak Force Left (% BW)</label><input type="number" id="as-1080-left" class="inp" placeholder="e.g. 1.8" step="0.01"></div>'
-    + '<div class="form-group"><label>Peak Force Right (% BW)</label><input type="number" id="as-1080-right" class="inp" placeholder="e.g. 1.9" step="0.01"></div></div>'
-    + '<div class="form-row"><div class="form-group"><label>1080 Asymmetry (%)</label><input type="number" id="as-1080-asym" class="inp" placeholder="L/R difference" step="0.1"></div>'
-    + '<div class="form-group"><label>Dominant Side</label><select id="as-1080-side" class="sel" style="margin-bottom:0"><option value="">Select...</option><option value="left">Left</option><option value="right">Right</option><option value="none">None</option></select></div></div>'
-    + '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:10px 0 6px">Program</div>'
-    + '<div class="form-row"><div class="form-group"><label>Primary Focus</label><select id="as-focus" class="sel" style="margin-bottom:0"><option value="">Select...</option><option value="hip_ir">Hip IR</option><option value="hip_add">Hip ADD</option><option value="foot_ankle">Foot/Ankle</option><option value="posterior_chain">Posterior Chain</option><option value="upper_body">Upper Body</option></select></div>'
-    + '<div class="form-group"><label>Current Phase</label><select id="as-phase" class="sel" style="margin-bottom:0"><option value="">Select...</option><option value="1">Phase 1</option><option value="2">Phase 2</option><option value="3">Phase 3</option><option value="4">Phase 4 - Peaking</option></select></div></div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>Special Considerations</label><input type="text" id="as-special" class="inp" placeholder="e.g. SI joint, post-surgery"></div>'
     + '<div class="form-group" style="margin-bottom:12px"><label>Notes</label><input type="text" id="as-notes" class="inp"></div>'
     + '<button class="btn" onclick="saveAssessment()">Save Assessment</button>'
     + '<div id="as-result" class="mt"></div>'
@@ -410,6 +401,16 @@ function getHTML() {
     + 'function pathwayLabel(p){'
     + 'var m={eccentric_progression:"Eccentric Progression",flywheel:"Flywheel",dual_deficit:"Dual Deficit",force_isometrics:"Force Development",speed_power:"Speed Power",timing:"Timing",peak_power:"Peak Power"};'
     + 'return m[p]||p;}'
+
+    + 'function buildPathwayBox(phase,track,pathway){'
+    + 'if(!pathway&&!track)return "";'
+    + 'var phaseNum=phase||1;'
+    + 'var trackLabel=track?track.replace(/_/g," ").toUpperCase():"";'
+    + 'var pathLabel=pathway?pathwayLabel(pathway):"";'
+    + 'var title=phaseNum==1?"Phase 1 - "+trackLabel+" Track":"Phase "+phaseNum+" - "+pathLabel;'
+    + 'var desc=phaseNum==1?"Movement deficiency correction.":"Force plate pathway active.";'
+    + 'return "<div class=\'pathway-box\'><div class=\'pathway-title\'>"+title+"</div><div class=\'pathway-desc\'>"+desc+"</div></div>";'
+    + '}'
 
     + 'function ld(){'
     + 'fetch("/api/athletes").then(function(r){return r.json();}).then(function(at){'
@@ -490,14 +491,7 @@ function getHTML() {
     + 'fetch("/api/assessments/"+aid+"/current").then(function(r){return r.json();}).then(function(a){'
     + 'if(!a){el.innerHTML="<div class=\'em\'>No assessment on file.</div>";return;}'
     + 'var h="<div style=\'font-size:12px;color:#64748b;margin-bottom:12px\'>Last assessed: "+a.assessment_date+"</div>";'
-   if(a.prescribed_pathway||a.recommended_track){
-var phaseNum=a.current_phase||1;
-var trackLabel=a.recommended_track?a.recommended_track.replace(/_/g," ").toUpperCase():"";
-var pathLabel=a.prescribed_pathway?pathwayLabel(a.prescribed_pathway):"";
-var boxTitle=phaseNum==1?"Phase 1 - "+trackLabel+" Track":"Phase "+phaseNum+" - "+pathLabel;
-var boxDesc=phaseNum==1?"Movement deficiency correction.":"Force plate pathway active.";
-h+="<div class=\'pathway-box\'><div class=\'pathway-title\'>"+boxTitle+"</div><div class=\'pathway-desc\'>"+boxDesc+"</div></div>";
-}
+    + 'h+=buildPathwayBox(a.current_phase,a.recommended_track,a.prescribed_pathway);'
     + 'h+="<div style=\'margin-top:16px\'><div style=\'font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px\'>Viability Gates</div>";'
     + 'h+="<div class=\'gate-item\'>"+(a.ir_viable_absolute?"<span class=\'pass\'>PASS</span>":"<span class=\'fail\'>FAIL</span>")+" Hip IR Viable</div>";'
     + 'h+="<div class=\'gate-item\'>"+(a.add_viable_absolute?"<span class=\'pass\'>PASS</span>":"<span class=\'fail\'>FAIL</span>")+" Hip ADD Viable</div>";'
@@ -534,12 +528,6 @@ h+="<div class=\'pathway-box\'><div class=\'pathway-title\'>"+boxTitle+"</div><d
     + 'add_rom_pass:document.getElementById("as-add-rom").value==="true"?true:document.getElementById("as-add-rom").value==="false"?false:null,'
     + 'ir_rom_degrees_left:parseFloat(document.getElementById("as-ir-rom-l").value)||null,'
     + 'ir_rom_degrees_right:parseFloat(document.getElementById("as-ir-rom-r").value)||null,'
-    + 'split_squat_peak_force_bw:parseFloat(document.getElementById("as-1080-left").value)||null,'
-    + 'split_squat_asymmetry_pct:parseFloat(document.getElementById("as-1080-asym").value)||null,'
-    + 'split_squat_dominant_side:document.getElementById("as-1080-side").value||null,'
-    + 'primary_focus:document.getElementById("as-focus").value||null,'
-    + 'current_phase:parseInt(document.getElementById("as-phase").value)||null,'
-    + 'special_considerations:document.getElementById("as-special").value||null,'
     + 'notes:document.getElementById("as-notes").value||null'
     + '};'
     + 'var m=document.getElementById("as-result");m.style.display="block";m.className="mt";m.textContent="Saving...";'
