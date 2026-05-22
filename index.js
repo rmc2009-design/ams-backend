@@ -127,6 +127,106 @@ app.post('/api/assessments', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/programs', async function(req, res) {
+  try {
+    var r = await supabase.from('programs').insert(req.body).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/programs/:id/assign', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_programs').upsert({
+      athlete_id: req.body.athlete_id,
+      program_id: req.params.id,
+      active: true,
+    }, { onConflict: 'athlete_id,program_id' });
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/suggest/:athleteId', async function(req, res) {
+  try {
+    var assessment = await supabase.from('athlete_current_assessment')
+      .select('*').eq('athlete_id', req.params.athleteId).maybeSingle();
+    if (assessment.error) throw assessment.error;
+    var a = assessment.data;
+    if (!a) { res.json({ track: null, pathway: null, suggestions: [] }); return; }
+
+    var track = a.recommended_track || 'hip_ir';
+    var phase = a.current_phase || 1;
+    var phaseType = phase == 1 ? 'movement_deficiency' : (a.prescribed_pathway || 'movement_deficiency');
+
+    var templates = await supabase.from('block_templates')
+      .select('*, block_template_exercises(*)')
+      .order('name');
+    if (templates.error) throw templates.error;
+
+    var warmups = templates.data.filter(function(t) {
+      return t.template_type === 'warmup' && 
+        (t.focus_area === track.replace('hip_','Hip ').replace('_',' ') || 
+         t.name.toLowerCase().includes(track.replace('_',' ')));
+    });
+
+    var block1 = templates.data.filter(function(t) {
+      return t.template_type === 'block' &&
+        (t.focus_area === track.replace('hip_','Hip ').replace('_',' ') ||
+         t.name.toLowerCase().includes(track.replace('hip_','').replace('_',' ')));
+    });
+
+    var cooldowns = templates.data.filter(function(t) {
+      return t.template_type === 'cooldown' &&
+        (t.focus_area === track.replace('hip_','Hip ').replace('_',' ') ||
+         t.name.toLowerCase().includes(track.replace('hip_','').replace('_',' ')));
+    });
+
+    res.json({
+      track: track,
+      pathway: a.prescribed_pathway,
+      phase: phase,
+      phase_type: phaseType,
+      warmup_suggestions: warmups,
+      block1_suggestions: block1,
+      cooldown_suggestions: cooldowns,
+      all_templates: templates.data,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/programs/:programId/days/:dayId/blocks', async function(req, res) {
+  try {
+    var blockR = await supabase.from('workout_blocks').insert({
+      day_id: req.params.dayId,
+      block_label: req.body.block_label,
+      block_order: req.body.block_order,
+      block_type: req.body.block_type || 'superset',
+    }).select();
+    if (blockR.error) throw blockR.error;
+    var blockId = blockR.data[0].id;
+
+    if (req.body.template_id) {
+      var exR = await supabase.from('block_template_exercises')
+        .select('*').eq('template_id', req.body.template_id)
+        .order('exercise_order');
+      if (exR.error) throw exR.error;
+      for (var i = 0; i < exR.data.length; i++) {
+        var ex = exR.data[i];
+        await supabase.from('workout_exercises').insert({
+          block_id: blockId,
+          exercise_name: ex.exercise_name,
+          exercise_order: ex.exercise_order,
+          sets: ex.sets,
+          tempo: ex.tempo,
+          rest: ex.rest,
+          notes: ex.notes,
+        });
+      }
+    }
+    res.json(blockR.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/programs', async function(req, res) {
   try {
     var aid = req.query.athlete_id || null;
