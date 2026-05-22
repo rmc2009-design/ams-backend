@@ -490,7 +490,11 @@ function getHTML() {
     + 'fetch("/api/assessments/"+aid+"/current").then(function(r){return r.json();}).then(function(a){'
     + 'if(!a){el.innerHTML="<div class=\'em\'>No assessment on file.</div>";return;}'
     + 'var h="<div style=\'font-size:12px;color:#64748b;margin-bottom:12px\'>Last assessed: "+a.assessment_date+"</div>";'
-    + 'if(a.prescribed_pathway){h+="<div class=\'pathway-box\'><div class=\'pathway-title\'>Prescribed Pathway: "+pathwayLabel(a.prescribed_pathway)+"</div></div>";}'
+    if(a.current_phase==1||!a.current_phase){
+if(a.recommended_track){h+="<div class=\'pathway-box\'><div class=\'pathway-title\'>Phase 1 - "+a.recommended_track.replace(/_/g," ").toUpperCase()+" Track</div><div class=\'pathway-desc\'>Movement deficiency correction. Address "+a.recommended_track.replace(/_/g," ")+" before progressing to Phase 2.</div></div>";}
+}else{
+if(a.prescribed_pathway){h+="<div class=\'pathway-box\'><div class=\'pathway-title\'>Phase "+a.current_phase+" - "+pathwayLabel(a.prescribed_pathway)+"</div><div class=\'pathway-desc\'>Force plate pathway active.</div></div>";}
+}
     + 'h+="<div style=\'margin-top:16px\'><div style=\'font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px\'>Viability Gates</div>";'
     + 'h+="<div class=\'gate-item\'>"+(a.ir_viable_absolute?"<span class=\'pass\'>PASS</span>":"<span class=\'fail\'>FAIL</span>")+" Hip IR Viable</div>";'
     + 'h+="<div class=\'gate-item\'>"+(a.add_viable_absolute?"<span class=\'pass\'>PASS</span>":"<span class=\'fail\'>FAIL</span>")+" Hip ADD Viable</div>";'
