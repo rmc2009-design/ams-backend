@@ -635,16 +635,30 @@ function createProgram() {
   var name = document.getElementById('np-name').value;
   if (!name) { alert('Enter a program name.'); return; }
   var weeks = parseInt(document.getElementById('np-weeks').value) || 4;
+  var warmupId = _picks['wu'] || null;
+  var block1Id = _picks['b1'] || null;
   var m = document.getElementById('np-result');
-  m.style.display = 'block'; m.className = 'mt'; m.textContent = 'Creating...';
+  m.style.display = 'block'; m.className = 'mt'; m.textContent = 'Creating program...';
   fetch('/api/programs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, weeks: weeks, phase: 'Phase 1' }) })
     .then(function(r) { return r.json(); })
     .then(function(prog) {
       if (prog.error) { m.className = 'mt er'; m.textContent = 'Error: ' + prog.error; return; }
-      return fetch('/api/programs/' + prog.id + '/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ athlete_id: aid }) })
+      var programId = prog.id;
+      m.textContent = 'Assigning to athlete...';
+      return fetch('/api/programs/' + programId + '/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ athlete_id: aid }) })
+        .then(function() {
+          m.textContent = 'Building days and exercises...';
+          return fetch('/api/programs/' + programId + '/build', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ warmup_template_id: warmupId, block1_template_id: block1Id })
+          });
+        })
+        .then(function(r) { return r.json(); })
         .then(function() {
           m.className = 'mt ok';
-          m.textContent = 'Program created!';
+          m.textContent = 'Program created with days and exercises! Click it to view.';
+          _picks = {};
           loadPrograms();
           document.getElementById('new-program-form').style.display = 'none';
         });
