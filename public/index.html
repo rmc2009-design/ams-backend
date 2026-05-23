@@ -430,13 +430,22 @@ function ls() {
   });
 }
 
-function initAnalysis() {
-  var sel = document.getElementById('an-athlete');
-  sel.innerHTML = '<option value="">All athletes</option>';
-  for (var i = 0; i < allAthletes.length; i++) {
-    sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+function initWorkouts() {
+  var sel = document.getElementById('w-athlete');
+  if (allAthletes.length) {
+    sel.innerHTML = '<option value="">Select athlete...</option>';
+    for (var i = 0; i < allAthletes.length; i++) {
+      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+    }
+  } else {
+    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
+      allAthletes = at;
+      sel.innerHTML = '<option value="">Select athlete...</option>';
+      for (var i = 0; i < at.length; i++) {
+        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
+      }
+    });
   }
-  la();
 }
 
 function la() {
@@ -472,13 +481,22 @@ function la() {
   }
 }
 
-function initAssessments() {
-  var sel = document.getElementById('as-athlete');
-  sel.innerHTML = '<option value="">Select athlete...</option>';
-  for (var i = 0; i < allAthletes.length; i++) {
-    sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+function initWorkouts() {
+  var sel = document.getElementById('w-athlete');
+  if (allAthletes.length) {
+    sel.innerHTML = '<option value="">Select athlete...</option>';
+    for (var i = 0; i < allAthletes.length; i++) {
+      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+    }
+  } else {
+    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
+      allAthletes = at;
+      sel.innerHTML = '<option value="">Select athlete...</option>';
+      for (var i = 0; i < at.length; i++) {
+        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
+      }
+    });
   }
-  document.getElementById('as-date').value = new Date().toISOString().split('T')[0];
 }
 
 function loadAssessment() {
@@ -548,9 +566,19 @@ function saveAssessment() {
 
 function initWorkouts() {
   var sel = document.getElementById('w-athlete');
-  sel.innerHTML = '<option value="">Select athlete...</option>';
-  for (var i = 0; i < allAthletes.length; i++) {
-    sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+  if (allAthletes.length) {
+    sel.innerHTML = '<option value="">Select athlete...</option>';
+    for (var i = 0; i < allAthletes.length; i++) {
+      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
+    }
+  } else {
+    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
+      allAthletes = at;
+      sel.innerHTML = '<option value="">Select athlete...</option>';
+      for (var i = 0; i < at.length; i++) {
+        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
+      }
+    });
   }
 }
 
