@@ -86,7 +86,6 @@ tr:last-child td { border-bottom:none; }
 </div>
 <div class="wrap">
 
-  <!-- Dashboard -->
   <div class="pg on" id="pd">
     <div class="metrics" id="mg"><div class="em">Loading...</div></div>
     <div class="two">
@@ -95,19 +94,14 @@ tr:last-child td { border-bottom:none; }
     </div>
   </div>
 
-  <!-- Roster -->
   <div class="pg" id="pr"><div class="ag" id="rg"><div class="em">Loading...</div></div></div>
 
-  <!-- Flags -->
   <div class="pg" id="pf"><div class="card"><h3>Unresolved Flags</h3><div id="fl"><div class="em">Loading...</div></div></div></div>
 
-  <!-- Load Records -->
   <div class="pg" id="pl"><div class="card"><h3>Load Records - Last 7 Days</h3><div id="lc"><div class="em">Loading...</div></div></div></div>
 
-  <!-- 1080 Motion -->
   <div class="pg" id="ps"><div class="card"><h3>1080 Motion - Last 12 Months</h3><div id="sc"><div class="em">Loading...</div></div></div></div>
 
-  <!-- Analysis -->
   <div class="pg" id="pan">
     <div class="card"><h3>Split Squat Asymmetry</h3>
       <select id="an-athlete" class="sel" onchange="la()"><option value="">All athletes</option></select>
@@ -116,7 +110,6 @@ tr:last-child td { border-bottom:none; }
     <div class="card" id="norm-card" style="display:none"><h3>Athlete Norms</h3><div id="norm-content"></div></div>
   </div>
 
-  <!-- Assessments -->
   <div class="pg" id="pas">
     <div class="two">
       <div class="card"><h3>Current Assessment</h3>
@@ -199,7 +192,6 @@ tr:last-child td { border-bottom:none; }
     </div>
   </div>
 
-  <!-- Workouts -->
   <div class="pg" id="pw">
     <div class="two">
       <div>
@@ -233,7 +225,6 @@ tr:last-child td { border-bottom:none; }
     </div>
   </div>
 
-  <!-- Import -->
   <div class="pg" id="pi">
     <div class="card"><h3>Import 1080 Motion Data</h3>
       <div class="ub"><p>Upload an Excel export from your 1080 Sprint or Quantum.</p>
@@ -249,6 +240,7 @@ tr:last-child td { border-bottom:none; }
 <script>
 var allAthletes = [];
 var currentProgramId = null;
+var _picks = {};
 
 function sp(n, btn) {
   document.querySelectorAll('.pg').forEach(function(p) { p.classList.remove('on'); });
@@ -310,7 +302,6 @@ function buildPathwayBox(phase, track, pathway) {
   return '<div class="pathway-box"><div class="pathway-title">' + title + '</div><div class="pathway-desc">' + desc + '</div></div>';
 }
 
-// Dashboard
 function ld() {
   fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
     allAthletes = at;
@@ -374,7 +365,6 @@ function ld() {
   });
 }
 
-// Roster
 function lr() {
   fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
     var el = document.getElementById('rg');
@@ -389,7 +379,6 @@ function lr() {
   });
 }
 
-// Flags
 function lf() {
   fetch('/api/flags').then(function(r) { return r.json(); }).then(function(fl) {
     var el = document.getElementById('fl');
@@ -399,7 +388,7 @@ function lf() {
       var f = fl[i];
       var nm = f.athletes ? f.athletes.first_name + ' ' + f.athletes.last_name : 'Unknown';
       var sc = f.severity === 'critical' ? 'r' : f.severity === 'warning' ? 'a' : 'bl';
-      h += '<div class="fi" id="fg' + f.id + '"><span class="rb" onclick="rf(' + JSON.stringify(f.id) + ')">Resolve</span><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>';
+      h += '<div class="fi" id="fg' + f.id + '"><span class="rb" onclick="rf(\'' + f.id + '\')">Resolve</span><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>';
     }
     el.innerHTML = h;
   });
@@ -412,7 +401,6 @@ function rf(id) {
   });
 }
 
-// Load Records
 function ll() {
   fetch('/api/loads/recent').then(function(r) { return r.json(); }).then(function(data) {
     var el = document.getElementById('lc');
@@ -428,7 +416,6 @@ function ll() {
   });
 }
 
-// 1080 Motion
 function ls() {
   fetch('/api/sprints/recent').then(function(r) { return r.json(); }).then(function(data) {
     var el = document.getElementById('sc');
@@ -443,7 +430,6 @@ function ls() {
   });
 }
 
-// Analysis
 function initAnalysis() {
   var sel = document.getElementById('an-athlete');
   sel.innerHTML = '<option value="">All athletes</option>';
@@ -486,7 +472,6 @@ function la() {
   }
 }
 
-// Assessments
 function initAssessments() {
   var sel = document.getElementById('as-athlete');
   sel.innerHTML = '<option value="">Select athlete...</option>';
@@ -561,7 +546,6 @@ function saveAssessment() {
     }).catch(function(e) { m.className = 'mt er'; m.textContent = 'Failed: ' + e.message; });
 }
 
-// Workouts
 function initWorkouts() {
   var sel = document.getElementById('w-athlete');
   sel.innerHTML = '<option value="">Select athlete...</option>';
@@ -583,7 +567,9 @@ function loadPrograms() {
     } else {
       for (var i = 0; i < data.length; i++) {
         var p = data[i].programs || data[i];
-     h += '<div class="prog-item" onclick="loadProgramDetail(this.dataset.id, this.dataset.name)" data-id="' + p.id + '" data-name="' + p.name.replace(/"/g, '') + '"><div style="font-weight:600;font-size:13px">' + p.name + '</div><div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
+        h += '<div class="prog-item" data-pid="' + p.id + '" data-pname="' + p.name.replace(/"/g, '') + '" onclick="loadProgramDetail(this.getAttribute(\'data-pid\'), this.getAttribute(\'data-pname\'))">';
+        h += '<div style="font-weight:600;font-size:13px">' + p.name + '</div>';
+        h += '<div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
       }
     }
     el.innerHTML = h;
@@ -607,25 +593,26 @@ function showNewProgram() {
       h += '<div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px">SUGGESTED WARM-UP</div>';
       for (var i = 0; i < s.warmup_suggestions.length; i++) {
         var t = s.warmup_suggestions[i];
-        h += '<div class="suggest-item" onclick="pickTemplate(this,' + JSON.stringify(t.id) + ',' + JSON.stringify(t.name) + ',\'wu\')">' + t.name + '</div>';
+        h += '<div class="suggest-item" data-tid="' + t.id + '" data-slot="wu" onclick="pickTemplate(this)">' + t.name + '</div>';
       }
     }
     if (s.block1_suggestions && s.block1_suggestions.length) {
       h += '<div style="font-size:11px;font-weight:700;color:#64748b;margin:10px 0 6px">SUGGESTED BLOCK 1</div>';
       for (var i = 0; i < s.block1_suggestions.length; i++) {
         var t = s.block1_suggestions[i];
-        h += '<div class="suggest-item" onclick="pickTemplate(this,' + JSON.stringify(t.id) + ',' + JSON.stringify(t.name) + ',\'b1\')">' + t.name + '</div>';
+        h += '<div class="suggest-item" data-tid="' + t.id + '" data-slot="b1" onclick="pickTemplate(this)">' + t.name + '</div>';
       }
     }
     sb.innerHTML = h;
   });
 }
 
-var _picks = {};
-function pickTemplate(el, id, name, slot) {
-  _picks[slot] = id;
-  document.querySelectorAll('.suggest-item').forEach(function(item) {
-    if (item.id && item.id.indexOf('st-' + slot) === 0) item.classList.remove('selected');
+function pickTemplate(el) {
+  var slot = el.getAttribute('data-slot');
+  var tid = el.getAttribute('data-tid');
+  _picks[slot] = tid;
+  document.querySelectorAll('.suggest-item[data-slot="' + slot + '"]').forEach(function(item) {
+    item.classList.remove('selected');
   });
   el.classList.add('selected');
 }
@@ -665,7 +652,7 @@ function createProgram() {
     }).catch(function(e) { m.className = 'mt er'; m.textContent = 'Failed: ' + e.message; });
 }
 
-h += '<div class="prog-item" onclick="loadProgramDetail(this.dataset.id, this.dataset.name)" data-id="' + p.id + '" data-name="' + p.name.replace(/"/g, "") + '"><div style="font-weight:600;font-size:13px">' + p.name + '</div><div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
+function loadProgramDetail(id, name) {
   currentProgramId = id;
   document.getElementById('program-detail').style.display = 'block';
   document.getElementById('new-program-form').style.display = 'none';
@@ -673,7 +660,9 @@ h += '<div class="prog-item" onclick="loadProgramDetail(this.dataset.id, this.da
   renderProgramDays(id);
 }
 
-function reloadWeek() { if (currentProgramId) renderProgramDays(currentProgramId); }
+function reloadWeek() {
+  if (currentProgramId) renderProgramDays(currentProgramId);
+}
 
 function renderProgramDays(id) {
   var week = parseInt(document.getElementById('week-select').value) || 1;
@@ -689,13 +678,21 @@ function renderProgramDays(id) {
         var exs = block.workout_exercises || [];
         exs.sort(function(a, b) { return a.exercise_order - b.exercise_order; });
         if (!exs.length) continue;
-        h += '<div class="blk-lbl">Block ' + block.block_label + '</div><table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Reps Wk' + week + '</th><th>Weight</th></tr></thead><tbody>';
+        h += '<div class="blk-lbl">Block ' + block.block_label + '</div>';
+        h += '<table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Reps Wk' + week + '</th><th>Weight</th></tr></thead><tbody>';
         for (var e = 0; e < exs.length; e++) {
           var ex = exs[e];
           var prog = null;
           var progs = ex.workout_progressions || [];
-          for (var p = 0; p < progs.length; p++) { if (progs[p].week_number == week) { prog = progs[p]; break; } }
-          h += '<tr><td style="font-weight:500">' + ex.exercise_name + '</td><td>' + (ex.sets || '-') + '</td><td>' + (ex.tempo || '-') + '</td><td>' + (ex.rest || '-') + '</td><td>' + (prog && prog.reps ? prog.reps : '-') + '</td><td>' + (prog && prog.weight ? prog.weight : '-') + '</td></tr>';
+          for (var p = 0; p < progs.length; p++) {
+            if (progs[p].week_number == week) { prog = progs[p]; break; }
+          }
+          h += '<tr><td style="font-weight:500">' + ex.exercise_name + '</td>';
+          h += '<td>' + (ex.sets || '-') + '</td>';
+          h += '<td>' + (ex.tempo || '-') + '</td>';
+          h += '<td>' + (ex.rest || '-') + '</td>';
+          h += '<td>' + (prog && prog.reps ? prog.reps : '-') + '</td>';
+          h += '<td>' + (prog && prog.weight ? prog.weight : '-') + '</td></tr>';
         }
         h += '</tbody></table>';
       }
@@ -705,7 +702,6 @@ function renderProgramDays(id) {
   });
 }
 
-// Import
 function di() {
   var fi = document.getElementById('if2');
   if (!fi.files.length) { alert('Select a file first.'); return; }
