@@ -583,7 +583,7 @@ function loadPrograms() {
     } else {
       for (var i = 0; i < data.length; i++) {
         var p = data[i].programs || data[i];
-        h += '<div class="prog-item" onclick="loadProgramDetail(' + JSON.stringify(p.id) + ',' + JSON.stringify(p.name) + ')"><div style="font-weight:600;font-size:13px">' + p.name + '</div><div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
+     h += '<div class="prog-item" onclick="loadProgramDetail(this.dataset.id, this.dataset.name)" data-id="' + p.id + '" data-name="' + p.name.replace(/"/g, '') + '"><div style="font-weight:600;font-size:13px">' + p.name + '</div><div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
       }
     }
     el.innerHTML = h;
