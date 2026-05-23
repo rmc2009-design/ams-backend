@@ -665,7 +665,7 @@ function createProgram() {
     }).catch(function(e) { m.className = 'mt er'; m.textContent = 'Failed: ' + e.message; });
 }
 
-function loadProgramDetail(id, name) {
+h += '<div class="prog-item" onclick="loadProgramDetail(this.dataset.id, this.dataset.name)" data-id="' + p.id + '" data-name="' + p.name.replace(/"/g, "") + '"><div style="font-weight:600;font-size:13px">' + p.name + '</div><div style="font-size:11px;color:#64748b">' + (p.weeks ? p.weeks + ' weeks' : '') + '</div></div>';
   currentProgramId = id;
   document.getElementById('program-detail').style.display = 'block';
   document.getElementById('new-program-form').style.display = 'none';
