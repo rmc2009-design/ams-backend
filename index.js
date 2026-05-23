@@ -132,6 +132,112 @@ app.post('/api/programs', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/programs/:id/build', async function(req, res) {
+  try {
+    var programId = req.params.id;
+    var warmupTemplateId = req.body.warmup_template_id || null;
+    var block1TemplateId = req.body.block1_template_id || null;
+    var days = [
+      { name: 'Monday', order: 1 },
+      { name: 'Wednesday', order: 2 },
+      { name: 'Friday', order: 3 },
+      { name: 'Conditioning', order: 4 }
+    ];
+
+    for (var d = 0; d < days.length; d++) {
+      var day = days[d];
+      var dayR = await supabase.from('program_days').insert({
+        program_id: programId, day_name: day.name, day_order: day.order, day_type: 'strength'
+      }).select();
+      if (dayR.error) continue;
+      var dayId = dayR.data[0].id;
+
+      // Monday gets warmup + block1 from templates
+      if (day.name === 'Monday') {
+        if (warmupTemplateId) {
+          await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
+        }
+        if (block1TemplateId) {
+          await insertBlockFromTemplate(dayId, block1TemplateId, '1', 1, 'superset');
+        }
+        // Add standard Block 2 and 3
+        await insertStandardBlocks(dayId, 2);
+      } else if (day.name === 'Wednesday') {
+        if (warmupTemplateId) {
+          await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
+        }
+        await insertStandardBlocks(dayId, 1);
+      } else if (day.name === 'Friday') {
+        if (warmupTemplateId) {
+          await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
+        }
+        if (block1TemplateId) {
+          await insertBlockFromTemplate(dayId, block1TemplateId, '1', 1, 'superset');
+        }
+        await insertStandardBlocks(dayId, 2);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+async function insertBlockFromTemplate(dayId, templateId, label, order, type) {
+  var blockR = await supabase.from('workout_blocks').insert({
+    day_id: dayId, block_label: label, block_order: order, block_type: type
+  }).select();
+  if (blockR.error) return;
+  var blockId = blockR.data[0].id;
+  var exR = await supabase.from('block_template_exercises')
+    .select('*').eq('template_id', templateId).order('exercise_order');
+  if (exR.error || !exR.data.length) return;
+  for (var i = 0; i < exR.data.length; i++) {
+    var ex = exR.data[i];
+    await supabase.from('workout_exercises').insert({
+      block_id: blockId, exercise_name: ex.exercise_name,
+      exercise_order: ex.exercise_order, sets: ex.sets,
+      tempo: ex.tempo, rest: ex.rest, notes: ex.notes,
+    });
+  }
+}
+
+async function insertStandardBlocks(dayId, startOrder) {
+  var posteriorBlock = await supabase.from('workout_blocks').insert({
+    day_id: dayId, block_label: String(startOrder), block_order: startOrder, block_type: 'superset'
+  }).select();
+  if (!posteriorBlock.error) {
+    var blockId = posteriorBlock.data[0].id;
+    var stdExercises = [
+      { name: 'iso dynamic kickstand hinge', order: 1, sets: 2, tempo: '', rest: ':60' },
+      { name: 'ring row iso holds', order: 2, sets: 2, tempo: '5 sec', rest: ':60' },
+      { name: '45 degree torsion', order: 3, sets: 2, tempo: '', rest: ':60' },
+    ];
+    for (var i = 0; i < stdExercises.length; i++) {
+      var ex = stdExercises[i];
+      await supabase.from('workout_exercises').insert({
+        block_id: blockId, exercise_name: ex.name,
+        exercise_order: ex.order, sets: ex.sets, tempo: ex.tempo, rest: ex.rest,
+      });
+    }
+  }
+  var coreBlock = await supabase.from('workout_blocks').insert({
+    day_id: dayId, block_label: String(startOrder + 1), block_order: startOrder + 1, block_type: 'superset'
+  }).select();
+  if (!coreBlock.error) {
+    var blockId = coreBlock.data[0].id;
+    var coreExercises = [
+      { name: 'birddog row', order: 1, sets: 2, tempo: '', rest: ':60' },
+      { name: 'GHR iso at top', order: 2, sets: 2, tempo: '', rest: ':60' },
+      { name: 'HF crunch', order: 3, sets: 2, tempo: '', rest: ':60' },
+    ];
+    for (var i = 0; i < coreExercises.length; i++) {
+      var ex = coreExercises[i];
+      await supabase.from('workout_exercises').insert({
+        block_id: blockId, exercise_name: ex.name,
+        exercise_order: ex.order, sets: ex.sets, tempo: ex.tempo, rest: ex.rest,
+      });
+    }
+  }
+}
 app.post('/api/programs/:id/assign', async function(req, res) {
   try {
     var r = await supabase.from('athlete_programs').upsert({
