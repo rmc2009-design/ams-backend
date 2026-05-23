@@ -95,11 +95,8 @@ tr:last-child td { border-bottom:none; }
   </div>
 
   <div class="pg" id="pr"><div class="ag" id="rg"><div class="em">Loading...</div></div></div>
-
   <div class="pg" id="pf"><div class="card"><h3>Unresolved Flags</h3><div id="fl"><div class="em">Loading...</div></div></div></div>
-
   <div class="pg" id="pl"><div class="card"><h3>Load Records - Last 7 Days</h3><div id="lc"><div class="em">Loading...</div></div></div></div>
-
   <div class="pg" id="ps"><div class="card"><h3>1080 Motion - Last 12 Months</h3><div id="sc"><div class="em">Loading...</div></div></div></div>
 
   <div class="pg" id="pan">
@@ -236,11 +233,24 @@ tr:last-child td { border-bottom:none; }
   </div>
 
 </div>
-
 <script>
 var allAthletes = [];
 var currentProgramId = null;
 var _picks = {};
+
+function populateSel(selId) {
+  var sel = document.getElementById(selId);
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">Select athlete...</option>';
+  for (var i = 0; i < allAthletes.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = allAthletes[i].id;
+    opt.textContent = allAthletes[i].first_name + ' ' + allAthletes[i].last_name;
+    sel.appendChild(opt);
+  }
+  if (cur) sel.value = cur;
+}
 
 function sp(n, btn) {
   document.querySelectorAll('.pg').forEach(function(p) { p.classList.remove('on'); });
@@ -251,47 +261,32 @@ function sp(n, btn) {
   if (n === 'f') lf();
   if (n === 'l') ll();
   if (n === 's') ls();
-  if (n === 'an') initAnalysis();
-  if (n === 'as') initAssessments();
-  if (n === 'w') initWorkouts();
+  if (n === 'an') { populateSel('an-athlete'); la(); }
+  if (n === 'as') { populateSel('as-athlete'); document.getElementById('as-date').value = new Date().toISOString().split('T')[0]; }
+  if (n === 'w') { populateSel('w-athlete'); }
 }
 
-function bx(t, c) {
-  return '<span class="b ' + c + '">' + t + '</span>';
-}
-
+function bx(t, c) { return '<span class="b ' + c + '">' + t + '</span>'; }
 function lb(s) {
   if (s === 'High') return bx(s, 'r');
   if (s === 'Low') return bx(s, 'g');
   if (s === 'Injured') return bx(s, 'a');
   return bx(s, 'bl');
 }
-
 function ta(iso) {
   var h = Math.floor((Date.now() - new Date(iso)) / 3600000);
   if (h < 1) return 'just now';
   if (h < 24) return h + 'h ago';
   return Math.floor(h / 24) + 'd ago';
 }
-
 function tlDot(c) {
   var cl = c === 'red' ? 'tl-red' : c === 'yellow' ? 'tl-yellow' : c === 'green' ? 'tl-green' : 'tl-gray';
   return '<span class="tl ' + cl + '"></span>';
 }
-
 function pathwayLabel(p) {
-  var m = {
-    eccentric_progression: 'Eccentric Progression',
-    flywheel: 'Flywheel',
-    dual_deficit: 'Dual Deficit',
-    force_isometrics: 'Force Development',
-    speed_power: 'Speed Power',
-    timing: 'Timing',
-    peak_power: 'Peak Power'
-  };
+  var m = { eccentric_progression:'Eccentric Progression', flywheel:'Flywheel', dual_deficit:'Dual Deficit', force_isometrics:'Force Development', speed_power:'Speed Power', timing:'Timing', peak_power:'Peak Power' };
   return m[p] || p;
 }
-
 function buildPathwayBox(phase, track, pathway) {
   if (!pathway && !track) return '';
   var phaseNum = phase || 1;
@@ -305,64 +300,27 @@ function buildPathwayBox(phase, track, pathway) {
 function ld() {
   fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
     allAthletes = at;
+    populateSel('an-athlete');
+    populateSel('as-athlete');
+    populateSel('w-athlete');
     fetch('/api/flags').then(function(r) { return r.json(); }).then(function(fl) {
       fetch('/api/loads/recent').then(function(r) { return r.json(); }).then(function(lo) {
         var hi = 0, inj = 0, cr = 0;
-        for (var i = 0; i < at.length; i++) {
-          if (at[i].load_status === 'High') hi++;
-          if (at[i].load_status === 'Injured') inj++;
-        }
-        for (var i = 0; i < fl.length; i++) {
-          if (fl[i].severity === 'critical') cr++;
-        }
-        var mg = document.getElementById('mg');
-        mg.innerHTML = '';
-        var data = [
-          ['Total Athletes', at.length, null],
-          ['High Load', hi, hi > 0 ? '#991b1b' : null],
-          ['Injured', inj, inj > 0 ? '#92400e' : null],
-          ['Active Flags', fl.length, fl.length > 0 ? '#991b1b' : null],
-          ['Critical', cr, cr > 0 ? '#991b1b' : null],
-          ['Sessions (7d)', lo.length, null]
-        ];
-        for (var i = 0; i < data.length; i++) {
-          var d = document.createElement('div');
-          d.className = 'metric';
-          d.innerHTML = '<div class="metric-label">' + data[i][0] + '</div><div class="metric-val"' + (data[i][2] ? ' style="color:' + data[i][2] + '"' : '') + '>' + data[i][1] + '</div>';
-          mg.appendChild(d);
-        }
+        for (var i = 0; i < at.length; i++) { if (at[i].load_status === 'High') hi++; if (at[i].load_status === 'Injured') inj++; }
+        for (var i = 0; i < fl.length; i++) { if (fl[i].severity === 'critical') cr++; }
+        var mg = document.getElementById('mg'); mg.innerHTML = '';
+        var data = [['Total Athletes',at.length,null],['High Load',hi,hi>0?'#991b1b':null],['Injured',inj,inj>0?'#92400e':null],['Active Flags',fl.length,fl.length>0?'#991b1b':null],['Critical',cr,cr>0?'#991b1b':null],['Sessions (7d)',lo.length,null]];
+        for (var i = 0; i < data.length; i++) { var d = document.createElement('div'); d.className = 'metric'; d.innerHTML = '<div class="metric-label">' + data[i][0] + '</div><div class="metric-val"' + (data[i][2] ? ' style="color:' + data[i][2] + '"' : '') + '>' + data[i][1] + '</div>'; mg.appendChild(d); }
         var df = document.getElementById('df');
-        if (!fl.length) {
-          df.innerHTML = '<div class="em">No active flags</div>';
-        } else {
-          var h = '';
-          for (var i = 0; i < Math.min(fl.length, 5); i++) {
-            var f = fl[i];
-            var nm = f.athletes ? f.athletes.first_name + ' ' + f.athletes.last_name : 'Unknown';
-            var sc = f.severity === 'critical' ? 'r' : f.severity === 'warning' ? 'a' : 'bl';
-            h += '<div class="fi"><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>';
-          }
-          df.innerHTML = h;
-        }
+        if (!fl.length) { df.innerHTML = '<div class="em">No active flags</div>'; }
+        else { var h = ''; for (var i = 0; i < Math.min(fl.length, 5); i++) { var f = fl[i]; var nm = f.athletes ? f.athletes.first_name + ' ' + f.athletes.last_name : 'Unknown'; var sc = f.severity === 'critical' ? 'r' : f.severity === 'warning' ? 'a' : 'bl'; h += '<div class="fi"><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>'; } df.innerHTML = h; }
         var dl = document.getElementById('dl');
-        if (!lo.length) {
-          dl.innerHTML = '<div class="em">No sessions this week</div>';
-        } else {
-          var h = '<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th></tr></thead><tbody>';
-          for (var i = 0; i < Math.min(lo.length, 8); i++) {
-            var l = lo[i];
-            var nm = l.athletes ? l.athletes.first_name + ' ' + l.athletes.last_name : 'Unknown';
-            var rc = l.rpe >= 9 ? 'r' : l.rpe >= 7 ? 'a' : 'g';
-            h += '<tr><td>' + nm + '</td><td>' + l.session_date + '</td><td>' + (l.session_type || '-') + '</td><td>' + (l.rpe ? bx('RPE ' + l.rpe, rc) : '-') + '</td></tr>';
-          }
-          dl.innerHTML = h + '</tbody></table>';
-        }
+        if (!lo.length) { dl.innerHTML = '<div class="em">No sessions this week</div>'; }
+        else { var h = '<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th></tr></thead><tbody>'; for (var i = 0; i < Math.min(lo.length, 8); i++) { var l = lo[i]; var nm = l.athletes ? l.athletes.first_name + ' ' + l.athletes.last_name : 'Unknown'; var rc = l.rpe >= 9 ? 'r' : l.rpe >= 7 ? 'a' : 'g'; h += '<tr><td>' + nm + '</td><td>' + l.session_date + '</td><td>' + (l.session_type || '-') + '</td><td>' + (l.rpe ? bx('RPE ' + l.rpe, rc) : '-') + '</td></tr>'; } dl.innerHTML = h + '</tbody></table>'; }
         document.getElementById('upd').textContent = 'Updated ' + new Date().toLocaleTimeString();
       });
     });
-  }).catch(function(e) {
-    document.getElementById('mg').innerHTML = '<div class="em">Error: ' + e.message + '</div>';
-  });
+  }).catch(function(e) { document.getElementById('mg').innerHTML = '<div class="em">Error: ' + e.message + '</div>'; });
 }
 
 function lr() {
@@ -370,11 +328,7 @@ function lr() {
     var el = document.getElementById('rg');
     if (!at.length) { el.innerHTML = '<div class="em">No athletes.</div>'; return; }
     var h = '';
-    for (var i = 0; i < at.length; i++) {
-      var a = at[i];
-      var ini = a.first_name[0] + a.last_name[0];
-      h += '<div class="ac"><div class="av">' + ini + '</div><div style="font-weight:600;font-size:14px">' + a.first_name + ' ' + a.last_name + '</div><div style="font-size:12px;color:#64748b;margin-top:2px">' + (a.sport || '') + (a.position ? ' - ' + a.position : '') + '</div><div style="margin-top:8px">' + lb(a.load_status) + '</div></div>';
-    }
+    for (var i = 0; i < at.length; i++) { var a = at[i]; var ini = a.first_name[0] + a.last_name[0]; h += '<div class="ac"><div class="av">' + ini + '</div><div style="font-weight:600;font-size:14px">' + a.first_name + ' ' + a.last_name + '</div><div style="font-size:12px;color:#64748b;margin-top:2px">' + (a.sport || '') + (a.position ? ' - ' + a.position : '') + '</div><div style="margin-top:8px">' + lb(a.load_status) + '</div></div>'; }
     el.innerHTML = h;
   });
 }
@@ -384,34 +338,18 @@ function lf() {
     var el = document.getElementById('fl');
     if (!fl.length) { el.innerHTML = '<div class="em">No active flags</div>'; return; }
     var h = '';
-    for (var i = 0; i < fl.length; i++) {
-      var f = fl[i];
-      var nm = f.athletes ? f.athletes.first_name + ' ' + f.athletes.last_name : 'Unknown';
-      var sc = f.severity === 'critical' ? 'r' : f.severity === 'warning' ? 'a' : 'bl';
-      h += '<div class="fi" id="fg' + f.id + '"><span class="rb" onclick="rf(\'' + f.id + '\')">Resolve</span><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>';
-    }
+    for (var i = 0; i < fl.length; i++) { var f = fl[i]; var nm = f.athletes ? f.athletes.first_name + ' ' + f.athletes.last_name : 'Unknown'; var sc = f.severity === 'critical' ? 'r' : f.severity === 'warning' ? 'a' : 'bl'; h += '<div class="fi" id="fg' + f.id + '"><span class="rb" onclick="rf(\'' + f.id + '\')">Resolve</span><div class="fn">' + nm + ' ' + bx(f.severity, sc) + '</div><div class="fm">' + f.message + '</div><div class="ft">' + ta(f.created_at) + '</div></div>'; }
     el.innerHTML = h;
   });
 }
-
-function rf(id) {
-  fetch('/api/flags/' + id + '/resolve', { method: 'PATCH' }).then(function() {
-    var e = document.getElementById('fg' + id);
-    if (e) e.style.display = 'none';
-  });
-}
+function rf(id) { fetch('/api/flags/' + id + '/resolve', { method: 'PATCH' }).then(function() { var e = document.getElementById('fg' + id); if (e) e.style.display = 'none'; }); }
 
 function ll() {
   fetch('/api/loads/recent').then(function(r) { return r.json(); }).then(function(data) {
     var el = document.getElementById('lc');
     if (!data.length) { el.innerHTML = '<div class="em">No load records in the last 7 days.</div>'; return; }
     var h = '<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th><th>Load</th><th>Distance</th></tr></thead><tbody>';
-    for (var i = 0; i < data.length; i++) {
-      var l = data[i];
-      var nm = l.athletes ? l.athletes.first_name + ' ' + l.athletes.last_name : 'Unknown';
-      var rc = l.rpe >= 9 ? 'r' : l.rpe >= 7 ? 'a' : 'g';
-      h += '<tr><td>' + nm + '</td><td>' + l.session_date + '</td><td>' + (l.session_type || '-') + '</td><td>' + (l.rpe ? bx('RPE ' + parseFloat(l.rpe).toFixed(1), rc) : '-') + '</td><td>' + (l.session_load ? Math.round(l.session_load) + ' AU' : '-') + '</td><td>' + (l.total_distance_m ? Math.round(l.total_distance_m) + ' m' : '-') + '</td></tr>';
-    }
+    for (var i = 0; i < data.length; i++) { var l = data[i]; var nm = l.athletes ? l.athletes.first_name + ' ' + l.athletes.last_name : 'Unknown'; var rc = l.rpe >= 9 ? 'r' : l.rpe >= 7 ? 'a' : 'g'; h += '<tr><td>' + nm + '</td><td>' + l.session_date + '</td><td>' + (l.session_type || '-') + '</td><td>' + (l.rpe ? bx('RPE ' + parseFloat(l.rpe).toFixed(1), rc) : '-') + '</td><td>' + (l.session_load ? Math.round(l.session_load) + ' AU' : '-') + '</td><td>' + (l.total_distance_m ? Math.round(l.total_distance_m) + ' m' : '-') + '</td></tr>'; }
     el.innerHTML = h + '</tbody></table>';
   });
 }
@@ -421,31 +359,9 @@ function ls() {
     var el = document.getElementById('sc');
     if (!data.length) { el.innerHTML = '<div class="em">No 1080 data.</div>'; return; }
     var h = '<table><thead><tr><th>Athlete</th><th>Date</th><th>Exercise</th><th>Set</th><th>Rep</th><th>Side</th><th>Direction</th><th>Peak Force</th><th>Peak Power</th></tr></thead><tbody>';
-    for (var i = 0; i < data.length; i++) {
-      var s = data[i];
-      var nm = s.athletes ? s.athletes.first_name + ' ' + s.athletes.last_name : 'Unknown';
-      h += '<tr><td>' + nm + '</td><td>' + s.session_date + '</td><td>' + (s.exercise || '-') + '</td><td>' + (s.set_number || '-') + '</td><td>' + (s.rep_number || '-') + '</td><td>' + (s.side || '-') + '</td><td>' + (s.direction || '-') + '</td><td>' + (s.peak_force_n ? Math.round(s.peak_force_n) + ' N' : '-') + '</td><td>' + (s.peak_power_w ? Math.round(s.peak_power_w) + ' W' : '-') + '</td></tr>';
-    }
+    for (var i = 0; i < data.length; i++) { var s = data[i]; var nm = s.athletes ? s.athletes.first_name + ' ' + s.athletes.last_name : 'Unknown'; h += '<tr><td>' + nm + '</td><td>' + s.session_date + '</td><td>' + (s.exercise || '-') + '</td><td>' + (s.set_number || '-') + '</td><td>' + (s.rep_number || '-') + '</td><td>' + (s.side || '-') + '</td><td>' + (s.direction || '-') + '</td><td>' + (s.peak_force_n ? Math.round(s.peak_force_n) + ' N' : '-') + '</td><td>' + (s.peak_power_w ? Math.round(s.peak_power_w) + ' W' : '-') + '</td></tr>'; }
     el.innerHTML = h + '</tbody></table>';
   });
-}
-
-function initWorkouts() {
-  var sel = document.getElementById('w-athlete');
-  if (allAthletes.length) {
-    sel.innerHTML = '<option value="">Select athlete...</option>';
-    for (var i = 0; i < allAthletes.length; i++) {
-      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
-    }
-  } else {
-    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
-      allAthletes = at;
-      sel.innerHTML = '<option value="">Select athlete...</option>';
-      for (var i = 0; i < at.length; i++) {
-        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
-      }
-    });
-  }
 }
 
 function la() {
@@ -454,14 +370,7 @@ function la() {
     var el = document.getElementById('an-content');
     if (!data.length) { el.innerHTML = '<div class="em">No analysis data yet.</div>'; return; }
     var h = '<table><thead><tr><th>Athlete</th><th>Date</th><th>Exercise</th><th>Direction</th><th>Left Peak</th><th>Right Peak</th><th>Asymmetry</th><th>Flag</th><th>vs Norm</th></tr></thead><tbody>';
-    for (var i = 0; i < data.length; i++) {
-      var d = data[i];
-      var nm = d.athletes ? d.athletes.first_name + ' ' + d.athletes.last_name : 'Unknown';
-      var abs = Math.abs(d.asymmetry_pct);
-      var sign = d.asymmetry_pct >= 0 ? 'L' : 'R';
-      var nt = d.sd_from_norm != null ? (Math.abs(d.sd_from_norm).toFixed(1) + ' SD') : (d.session_count_at_calc < 5 ? 'Building (' + d.session_count_at_calc + '/5)' : 'Pop.');
-      h += '<tr><td>' + nm + '</td><td>' + d.session_date + '</td><td>' + (d.exercise || '-') + '</td><td>' + (d.direction || '-') + '</td><td>' + (d.left_peak_force_n ? Math.round(d.left_peak_force_n) + ' N' : '-') + '</td><td>' + (d.right_peak_force_n ? Math.round(d.right_peak_force_n) + ' N' : '-') + '</td><td>' + abs.toFixed(1) + '% ' + sign + '</td><td>' + tlDot(d.flag_color) + d.flag_color + '</td><td style="font-size:11px;color:#64748b">' + nt + '</td></tr>';
-    }
+    for (var i = 0; i < data.length; i++) { var d = data[i]; var nm = d.athletes ? d.athletes.first_name + ' ' + d.athletes.last_name : 'Unknown'; var abs = Math.abs(d.asymmetry_pct); var sign = d.asymmetry_pct >= 0 ? 'L' : 'R'; var nt = d.sd_from_norm != null ? (Math.abs(d.sd_from_norm).toFixed(1) + ' SD') : (d.session_count_at_calc < 5 ? 'Building (' + d.session_count_at_calc + '/5)' : 'Pop.'); h += '<tr><td>' + nm + '</td><td>' + d.session_date + '</td><td>' + (d.exercise || '-') + '</td><td>' + (d.direction || '-') + '</td><td>' + (d.left_peak_force_n ? Math.round(d.left_peak_force_n) + ' N' : '-') + '</td><td>' + (d.right_peak_force_n ? Math.round(d.right_peak_force_n) + ' N' : '-') + '</td><td>' + abs.toFixed(1) + '% ' + sign + '</td><td>' + tlDot(d.flag_color) + d.flag_color + '</td><td style="font-size:11px;color:#64748b">' + nt + '</td></tr>'; }
     el.innerHTML = h + '</tbody></table>';
   });
   if (aid) {
@@ -470,33 +379,10 @@ function la() {
       var nc = document.getElementById('norm-content');
       if (!norms.length) { nc.innerHTML = '<div class="em">No norms yet.</div>'; return; }
       var h = '';
-      for (var i = 0; i < norms.length; i++) {
-        var n = norms[i];
-        h += '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:16px;font-size:13px"><strong style="min-width:120px">' + n.exercise + '</strong><span style="color:#64748b;min-width:100px">' + n.direction + '</span><span>Mean: <strong>' + parseFloat(n.mean).toFixed(1) + '%</strong></span><span>SD: <strong>' + parseFloat(n.std_dev).toFixed(1) + '%</strong></span><span style="color:#64748b">' + n.session_count + ' sessions</span></div>';
-      }
+      for (var i = 0; i < norms.length; i++) { var n = norms[i]; h += '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:16px;font-size:13px"><strong style="min-width:120px">' + n.exercise + '</strong><span style="color:#64748b;min-width:100px">' + n.direction + '</span><span>Mean: <strong>' + parseFloat(n.mean).toFixed(1) + '%</strong></span><span>SD: <strong>' + parseFloat(n.std_dev).toFixed(1) + '%</strong></span><span style="color:#64748b">' + n.session_count + ' sessions</span></div>'; }
       nc.innerHTML = h;
     });
-  } else {
-    document.getElementById('norm-card').style.display = 'none';
-  }
-}
-
-function initWorkouts() {
-  var sel = document.getElementById('w-athlete');
-  if (allAthletes.length) {
-    sel.innerHTML = '<option value="">Select athlete...</option>';
-    for (var i = 0; i < allAthletes.length; i++) {
-      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
-    }
-  } else {
-    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
-      allAthletes = at;
-      sel.innerHTML = '<option value="">Select athlete...</option>';
-      for (var i = 0; i < at.length; i++) {
-        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
-      }
-    });
-  }
+  } else { document.getElementById('norm-card').style.display = 'none'; }
 }
 
 function loadAssessment() {
@@ -564,24 +450,6 @@ function saveAssessment() {
     }).catch(function(e) { m.className = 'mt er'; m.textContent = 'Failed: ' + e.message; });
 }
 
-function initWorkouts() {
-  var sel = document.getElementById('w-athlete');
-  if (allAthletes.length) {
-    sel.innerHTML = '<option value="">Select athlete...</option>';
-    for (var i = 0; i < allAthletes.length; i++) {
-      sel.innerHTML += '<option value="' + allAthletes[i].id + '">' + allAthletes[i].first_name + ' ' + allAthletes[i].last_name + '</option>';
-    }
-  } else {
-    fetch('/api/athletes').then(function(r) { return r.json(); }).then(function(at) {
-      allAthletes = at;
-      sel.innerHTML = '<option value="">Select athlete...</option>';
-      for (var i = 0; i < at.length; i++) {
-        sel.innerHTML += '<option value="' + at[i].id + '">' + at[i].first_name + ' ' + at[i].last_name + '</option>';
-      }
-    });
-  }
-}
-
 function loadPrograms() {
   var aid = document.getElementById('w-athlete').value;
   var el = document.getElementById('programs-list');
@@ -639,9 +507,7 @@ function pickTemplate(el) {
   var slot = el.getAttribute('data-slot');
   var tid = el.getAttribute('data-tid');
   _picks[slot] = tid;
-  document.querySelectorAll('.suggest-item[data-slot="' + slot + '"]').forEach(function(item) {
-    item.classList.remove('selected');
-  });
+  document.querySelectorAll('.suggest-item[data-slot="' + slot + '"]').forEach(function(item) { item.classList.remove('selected'); });
   el.classList.add('selected');
 }
 
@@ -663,16 +529,12 @@ function createProgram() {
       return fetch('/api/programs/' + programId + '/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ athlete_id: aid }) })
         .then(function() {
           m.textContent = 'Building days and exercises...';
-          return fetch('/api/programs/' + programId + '/build', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ warmup_template_id: warmupId, block1_template_id: block1Id })
-          });
+          return fetch('/api/programs/' + programId + '/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ warmup_template_id: warmupId, block1_template_id: block1Id }) });
         })
         .then(function(r) { return r.json(); })
         .then(function() {
           m.className = 'mt ok';
-          m.textContent = 'Program created with days and exercises! Click it to view.';
+          m.textContent = 'Program created! Click it to view.';
           _picks = {};
           loadPrograms();
           document.getElementById('new-program-form').style.display = 'none';
@@ -688,9 +550,7 @@ function loadProgramDetail(id, name) {
   renderProgramDays(id);
 }
 
-function reloadWeek() {
-  if (currentProgramId) renderProgramDays(currentProgramId);
-}
+function reloadWeek() { if (currentProgramId) renderProgramDays(currentProgramId); }
 
 function renderProgramDays(id) {
   var week = parseInt(document.getElementById('week-select').value) || 1;
@@ -712,15 +572,8 @@ function renderProgramDays(id) {
           var ex = exs[e];
           var prog = null;
           var progs = ex.workout_progressions || [];
-          for (var p = 0; p < progs.length; p++) {
-            if (progs[p].week_number == week) { prog = progs[p]; break; }
-          }
-          h += '<tr><td style="font-weight:500">' + ex.exercise_name + '</td>';
-          h += '<td>' + (ex.sets || '-') + '</td>';
-          h += '<td>' + (ex.tempo || '-') + '</td>';
-          h += '<td>' + (ex.rest || '-') + '</td>';
-          h += '<td>' + (prog && prog.reps ? prog.reps : '-') + '</td>';
-          h += '<td>' + (prog && prog.weight ? prog.weight : '-') + '</td></tr>';
+          for (var p = 0; p < progs.length; p++) { if (progs[p].week_number == week) { prog = progs[p]; break; } }
+          h += '<tr><td style="font-weight:500">' + ex.exercise_name + '</td><td>' + (ex.sets || '-') + '</td><td>' + (ex.tempo || '-') + '</td><td>' + (ex.rest || '-') + '</td><td>' + (prog && prog.reps ? prog.reps : '-') + '</td><td>' + (prog && prog.weight ? prog.weight : '-') + '</td></tr>';
         }
         h += '</tbody></table>';
       }
@@ -733,8 +586,7 @@ function renderProgramDays(id) {
 function di() {
   var fi = document.getElementById('if2');
   if (!fi.files.length) { alert('Select a file first.'); return; }
-  var fd = new FormData();
-  fd.append('file', fi.files[0]);
+  var fd = new FormData(); fd.append('file', fi.files[0]);
   var m = document.getElementById('im');
   m.style.display = 'block'; m.className = 'mt'; m.textContent = 'Importing...';
   fetch('/import/1080', { method: 'POST', body: fd })
