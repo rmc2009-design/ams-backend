@@ -135,8 +135,9 @@ app.post('/api/programs', async function(req, res) {
 app.post('/api/programs/:id/build', async function(req, res) {
   try {
     var programId = req.params.id;
-    var warmupTemplateId = req.body.warmup_template_id || null;
-    var block1TemplateId = req.body.block1_template_id || null;
+   var warmupTemplateId = req.body.warmup_template_id || null;
+var block1TemplateId = req.body.block1_template_id || null;
+console.log('BUILD warmup:', warmupTemplateId, 'block1:', block1TemplateId);
     var days = [
       { name: 'Monday', order: 1 },
       { name: 'Wednesday', order: 2 },
