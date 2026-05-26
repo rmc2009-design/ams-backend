@@ -439,22 +439,23 @@ function showNewProgram() {
     h+='</div>';
     if (s.warmup_suggestions&&s.warmup_suggestions.length){
       h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px">SUGGESTED WARM-UP</div>';
-      for (var i=0;i<s.warmup_suggestions.length;i++){var t=s.warmup_suggestions[i];h+='<div class="suggest-item" data-tid="'+t.id+'" data-slot="wu" onclick="pickTemplate(this)">'+t.name+'</div>';}
+      for (var i=0;i<s.warmup_suggestions.length;i++){var t=s.warmup_suggestions[i];h+='<div class="suggest-item" id="wu-'+i+'" onclick="pickSel(\'wu\',\''+t.id+'\',\'wu-'+i+'\')">'+t.name+'</div>';}
     }
     if (s.block1_suggestions&&s.block1_suggestions.length){
       h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin:10px 0 6px">SUGGESTED BLOCK 1</div>';
-      for (var i=0;i<s.block1_suggestions.length;i++){var t=s.block1_suggestions[i];h+='<div class="suggest-item" data-tid="'+t.id+'" data-slot="b1" onclick="pickTemplate(this)">'+t.name+'</div>';}
+      for (var i=0;i<s.block1_suggestions.length;i++){var t=s.block1_suggestions[i];h+='<div class="suggest-item" id="b1-'+i+'" onclick="pickSel(\'b1\',\''+t.id+'\',\'b1-'+i+'\')">'+t.name+'</div>';}
     }
     sb.innerHTML=h;
   });
 }
 
-function pickTemplate(el) {
-  var slot=el.getAttribute('data-slot');
-  var tid=el.getAttribute('data-tid');
+function pickSel(slot, tid, elemId) {
   _picks[slot]=tid;
-  document.querySelectorAll('.suggest-item[data-slot="'+slot+'"]').forEach(function(item){item.classList.remove('selected');});
-  el.classList.add('selected');
+  document.querySelectorAll('.suggest-item').forEach(function(item){
+    if (item.id && item.id.indexOf(slot+'-')===0) item.classList.remove('selected');
+  });
+  var el=document.getElementById(elemId);
+  if (el) el.classList.add('selected');
 }
 
 function createProgram() {
