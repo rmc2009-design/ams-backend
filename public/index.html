@@ -230,6 +230,7 @@ var allAthletes = [];
 var currentProgramId = null;
 var _picks = {};
 var _wedBlock1Id = null;
+var _friBlock1Id = null;
 
 function fetchAthletes(cb) {
   if (allAthletes.length) { cb(allAthletes); return; }
@@ -453,10 +454,11 @@ function showNewProgram(){
   document.getElementById('program-detail').style.display='none';
   var sb=document.getElementById('suggest-box');
   sb.innerHTML='<div class="em">Loading suggestions...</div>';
-  _picks={};_wedBlock1Id=null;
+  _picks={};_wedBlock1Id=null;_friBlock1Id=null;
   fetch('/api/suggest/'+aid).then(function(r){return r.json();}).then(function(s){
     if(!s.track){sb.innerHTML='<div class="em">No assessment on file. Enter assessment first.</div>';return;}
     _wedBlock1Id=s.wed_block1_id||null;
+    _friBlock1Id=s.fri_block1_id||null;
     var h='<div style="padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;margin-bottom:12px;font-size:12px"><strong>Track: '+s.track.replace(/_/g,' ').toUpperCase()+'</strong>';
     if(s.pathway)h+=' | Pathway: <strong>'+pathwayLabel(s.pathway)+'</strong>';
     h+='</div>';
@@ -498,12 +500,12 @@ function createProgram(){
       return fetch('/api/programs/'+programId+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({athlete_id:aid})})
         .then(function(){
           m.textContent='Building days and exercises...';
-          return fetch('/api/programs/'+programId+'/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warmup_template_id:warmupId,block1_template_id:block1Id,wed_block1_id:_wedBlock1Id})});
+          return fetch('/api/programs/'+programId+'/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warmup_template_id:warmupId,block1_template_id:block1Id,wed_block1_id:_wedBlock1Id,fri_block1_id:_friBlock1Id})});
         })
         .then(function(r){return r.json();})
         .then(function(){
           m.className='mt ok';m.textContent='Program created! Click it to view.';
-          _picks={};_wedBlock1Id=null;
+          _picks={};_wedBlock1Id=null;_friBlock1Id=null;
           loadPrograms();
           document.getElementById('new-program-form').style.display='none';
         });
