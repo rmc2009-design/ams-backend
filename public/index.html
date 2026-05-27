@@ -538,7 +538,7 @@ function renderProgramDays(id){
         for(var e=0;e<exs.length;e++){
           var ex=exs[e];var prog=null;var progs=ex.workout_progressions||[];
           for(var p=0;p<progs.length;p++){if(progs[p].week_number==week){prog=progs[p];break;}}
-          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td><td>'+(prog&&prog.reps?prog.reps:'-')+'</td><td>'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
+          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td><td class="editable-reps" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit reps">'+(prog&&prog.reps?prog.reps:'-')+'</td><td class="editable-weight" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit weight">'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
         }
         h+='</tbody></table>';
       }
@@ -547,6 +547,21 @@ function renderProgramDays(id){
     document.getElementById('program-days').innerHTML=h||'<div class="em">No exercises yet.</div>';
     document.getElementById('program-days').onclick=function(evt){
       var td=evt.target;
+      // Check for reps edit
+      if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
+        var isReps=td.classList.contains('editable-reps');
+        var cur=td.textContent==='-'?'':td.textContent;
+        var val=prompt(isReps?'Enter reps:':'Enter weight:',cur);
+        if(val!==null){
+          var exId=td.getAttribute('data-exid');
+          var wk=parseInt(td.getAttribute('data-week'));
+          fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({weeks:[{week:wk,reps:isReps?val:(td.getAttribute('data-progid')?undefined:null),weight:!isReps?val:undefined}]})
+          }).then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
+        }
+        return;
+      }
+      // Check for exercise swap
       while(td&&!td.classList.contains('ex-swap'))td=td.parentElement;
       if(td&&td.getAttribute('data-exid')){openSwap(td.getAttribute('data-exid'),td.textContent.trim());}
     };
@@ -625,10 +640,16 @@ function renderSwapList(exercises) {
 
 function doSwap(newName) {
   if (!_swapExId) return;
+  // Preserve block label prefix (e.g. "1A) ") from current exercise name
+  var currentName = document.getElementById('swap-current-name').textContent;
+  var prefix = '';
+  var match = currentName.match(/^(\d+[A-Za-z]\)\s*)/);
+  if (match) prefix = match[1];
+  var finalName = prefix + newName;
   fetch('/api/workout-exercises/' + _swapExId, {
     method: 'PATCH',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({exercise_name: newName, sets: null, tempo: null, rest: null, notes: null})
+    body: JSON.stringify({exercise_name: finalName, sets: null, tempo: null, rest: null, notes: null})
   }).then(function(r){return r.json();}).then(function(){
     closeSwap();
     if (currentProgramId) renderProgramDays(currentProgramId);
