@@ -545,24 +545,7 @@ function renderProgramDays(id){
       h+='</div>';
     }
     document.getElementById('program-days').innerHTML=h||'<div class="em">No exercises yet.</div>';
-    document.getElementById('program-days').onclick=function(evt){
-      var td=evt.target;
-      if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
-        var isReps=td.classList.contains('editable-reps');
-        var cur=td.textContent==='-'?'':td.textContent;
-        var val=prompt(isReps?'Enter reps:':'Enter weight:',cur);
-        if(val!==null){
-          var exId=td.getAttribute('data-exid');
-          var wk=parseInt(td.getAttribute('data-week'));
-          var body=isReps?{weeks:[{week:wk,reps:val}]}:{weeks:[{week:wk,weight:val}]};
-          fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-            .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
-        }
-        return;
-      }
-      var swap=td.closest('.ex-swap');
-      if(swap){openSwap(swap.getAttribute('data-exid'),swap.textContent.trim());}
-    };
+
   });
 }
 
@@ -651,6 +634,25 @@ function doSwap(newName) {
 }
 
 ld();
+
+document.getElementById('program-days').onclick=function(evt){
+  var td=evt.target;
+  if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
+    var isReps=td.classList.contains('editable-reps');
+    var cur=td.textContent==='-'?'':td.textContent;
+    var val=prompt(isReps?'Enter reps:':'Enter weight:',cur);
+    if(val!==null){
+      var exId=td.getAttribute('data-exid');
+      var wk=parseInt(td.getAttribute('data-week'));
+      var body=isReps?{weeks:[{week:wk,reps:val}]}:{weeks:[{week:wk,weight:val}]};
+      fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
+    }
+    return;
+  }
+  var swap=td.closest('.ex-swap');
+  if(swap){openSwap(swap.getAttribute('data-exid'),swap.textContent.trim());}
+};
 </script>
 </body>
 </html>
