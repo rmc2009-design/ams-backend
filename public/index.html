@@ -462,9 +462,10 @@ function createProgram() {
   var aid=document.getElementById('w-athlete').value;
   var name=document.getElementById('np-name').value;
   if (!name){alert('Enter a program name.');return;}
-  var weeks=parseInt(document.getElementById('np-weeks').value)||4;
-  var warmupId=_picks['wu']||null;
-  var block1Id=_picks['b1']||null;
+ var weeks=parseInt(document.getElementById('np-weeks').value)||4;
+var warmupId=_picks['wu']||null;
+var block1Id=_picks['b1']||null;
+alert('warmup: '+warmupId+'\nblock1: '+block1Id);
   var m=document.getElementById('np-result');
   m.style.display='block';m.className='mt';m.textContent='Creating program...';
   fetch('/api/programs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,weeks:weeks,phase:'Phase 1'})})
