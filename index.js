@@ -184,7 +184,8 @@ app.post('/api/programs/:id/build', async function(req, res) {
         await insertStandardBlocks(dayId, 2);
       } else if (day.name === 'Friday') {
         if (warmupTemplateId) await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
-        if (block1TemplateId) await insertBlockFromTemplate(dayId, block1TemplateId, '1', 1, 'superset');
+        var friId = req.body.fri_block1_id || block1TemplateId;
+        if (friId) await insertBlockFromTemplate(dayId, friId, '1', 1, 'superset');
         await insertStandardBlocks(dayId, 2);
       }
     }
@@ -294,8 +295,9 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
     if (!a) { res.json({ track: null, pathway: null }); return; }
 
     var track = a.recommended_track || 'hip_ir';
-    var trackWord = track.replace('hip_', '').replace('_', ' ');
-    var wedTrackWord = trackWord === 'ir' ? 'add' : 'ir';
+    var trackWord = track === 'foot_ankle' ? 'foot/ankle' : track.replace('hip_', '').replace('_', ' ');
+    var wedTrackWord = track === 'foot_ankle' ? 'add' : (trackWord === 'ir' ? 'add' : 'ir');
+    var friTrackWord = track === 'foot_ankle' ? 'ir' : trackWord;
 
     var templates = await supabase.from('block_templates')
       .select('*, block_template_exercises(*)').order('name');
@@ -312,6 +314,11 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
     });
     var wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
 
+    var friBlocks = templates.data.filter(function(t) {
+      return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+friTrackWord);
+    });
+    var friBlock1Id = track === 'foot_ankle' ? (friBlocks.length ? friBlocks[0].id : null) : null;
+
     res.json({
       track: track,
       pathway: a.prescribed_pathway,
@@ -319,6 +326,7 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
       warmup_suggestions: warmups,
       block1_suggestions: block1,
       wed_block1_id: wedBlock1Id,
+      fri_block1_id: friBlock1Id,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
