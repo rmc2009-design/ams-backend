@@ -308,7 +308,7 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
       return t.template_type === 'block' && t.name.toLowerCase().includes(trackWord);
     });
     var wedBlocks = templates.data.filter(function(t) {
-     return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+wedTrackWord);
+      return t.template_type === 'block' && t.name.toLowerCase().includes(wedTrackWord);
     });
     var wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
 
@@ -322,6 +322,7 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
@@ -338,10 +339,10 @@ app.patch('/api/workout-exercises/:id', async function(req, res) {
     var r = await supabase.from('workout_exercises')
       .update({
         exercise_name: req.body.exercise_name,
-        sets: req.body.sets || null,
-        tempo: req.body.tempo || null,
-        rest: req.body.rest || null,
-        notes: req.body.notes || null,
+        sets: req.body.sets !== undefined ? req.body.sets : null,
+        tempo: req.body.tempo !== undefined ? req.body.tempo : null,
+        rest: req.body.rest !== undefined ? req.body.rest : null,
+        notes: req.body.notes !== undefined ? req.body.notes : null,
       })
       .eq('id', req.params.id);
     if (r.error) throw r.error;
@@ -353,17 +354,25 @@ app.patch('/api/workout-progressions/:exId', async function(req, res) {
   try {
     var updates = req.body.weeks;
     for (var i = 0; i < updates.length; i++) {
-      await supabase.from('workout_progressions')
-        .upsert({
-          workout_exercise_id: req.params.exId,
-          week_number: updates[i].week,
-          reps: updates[i].reps || null,
-          weight: updates[i].weight || null,
-        }, { onConflict: 'workout_exercise_id,week_number' });
+      var u = updates[i];
+      var existing = await supabase.from('workout_progressions')
+        .select('id, reps, weight')
+        .eq('workout_exercise_id', req.params.exId)
+        .eq('week_number', u.week)
+        .maybeSingle();
+      var reps = u.reps !== undefined ? u.reps : (existing.data ? existing.data.reps : null);
+      var weight = u.weight !== undefined ? u.weight : (existing.data ? existing.data.weight : null);
+      await supabase.from('workout_progressions').upsert({
+        workout_exercise_id: req.params.exId,
+        week_number: u.week,
+        reps: reps,
+        weight: weight,
+      }, { onConflict: 'workout_exercise_id,week_number' });
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/reanalyze', async function(req, res) {
   try {
     var analysis = require('./src/services/analysis');
