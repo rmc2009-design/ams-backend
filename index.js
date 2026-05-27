@@ -322,7 +322,48 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+app.get('/api/exercises', async function(req, res) {
+  try {
+    var cat = req.query.category || null;
+    var q = supabase.from('exercises').select('*').order('category').order('name');
+    if (cat) q = q.eq('category', cat);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
+app.patch('/api/workout-exercises/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('workout_exercises')
+      .update({
+        exercise_name: req.body.exercise_name,
+        sets: req.body.sets || null,
+        tempo: req.body.tempo || null,
+        rest: req.body.rest || null,
+        notes: req.body.notes || null,
+      })
+      .eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/workout-progressions/:exId', async function(req, res) {
+  try {
+    var updates = req.body.weeks;
+    for (var i = 0; i < updates.length; i++) {
+      await supabase.from('workout_progressions')
+        .upsert({
+          workout_exercise_id: req.params.exId,
+          week_number: updates[i].week,
+          reps: updates[i].reps || null,
+          weight: updates[i].weight || null,
+        }, { onConflict: 'workout_exercise_id,week_number' });
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/reanalyze', async function(req, res) {
   try {
     var analysis = require('./src/services/analysis');
