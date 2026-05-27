@@ -611,12 +611,16 @@ function renderSwapList(exercises) {
   var h = '';
   for (var i = 0; i < exercises.length; i++) {
     var e = exercises[i];
-    h += '<div class="prog-item" onclick="doSwap(' + JSON.stringify(e.name) + ')">';
+    h += '<div class="prog-item swap-ex-item" data-name="' + e.name.replace(/"/g,'&quot;') + '">';
     h += '<div style="font-weight:500;font-size:13px">' + e.name + '</div>';
     h += '<div style="font-size:11px;color:#64748b">' + (e.category||'') + (e.equipment?' - '+e.equipment:'') + '</div>';
     h += '</div>';
   }
   el.innerHTML = h;
+  el.onclick = function(evt) {
+    var item = evt.target.closest('.swap-ex-item');
+    if (item) doSwap(item.getAttribute('data-name'));
+  };
 }
 
 function doSwap(newName) {
