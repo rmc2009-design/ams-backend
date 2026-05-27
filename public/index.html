@@ -547,7 +547,6 @@ function renderProgramDays(id){
     document.getElementById('program-days').innerHTML=h||'<div class="em">No exercises yet.</div>';
     document.getElementById('program-days').onclick=function(evt){
       var td=evt.target;
-      // Check for reps edit
       if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
         var isReps=td.classList.contains('editable-reps');
         var cur=td.textContent==='-'?'':td.textContent;
@@ -555,19 +554,14 @@ function renderProgramDays(id){
         if(val!==null){
           var exId=td.getAttribute('data-exid');
           var wk=parseInt(td.getAttribute('data-week'));
-          fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({weeks:[{week:wk,reps:isReps?val:(td.getAttribute('data-progid')?undefined:null),weight:!isReps?val:undefined}]})
-          }).then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
+          var body=isReps?{weeks:[{week:wk,reps:val}]}:{weeks:[{week:wk,weight:val}]};
+          fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+            .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
         }
         return;
       }
-      // Check for exercise swap
-      while(td&&!td.classList.contains('ex-swap'))td=td.parentElement;
-      if(td&&td.getAttribute('data-exid')){openSwap(td.getAttribute('data-exid'),td.textContent.trim());}
-    };
-    document.getElementById('program-days').onclick=function(evt){
-      var td=evt.target.closest('.ex-swap');
-      if(td){openSwap(td.getAttribute('data-exid'),td.getAttribute('data-exname'));}
+      var swap=td.closest('.ex-swap');
+      if(swap){openSwap(swap.getAttribute('data-exid'),swap.textContent.trim());}
     };
   });
 }
