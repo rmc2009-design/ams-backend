@@ -308,7 +308,7 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
       return t.template_type === 'block' && t.name.toLowerCase().includes(trackWord);
     });
     var wedBlocks = templates.data.filter(function(t) {
-      return t.template_type === 'block' && t.name.toLowerCase().includes(wedTrackWord);
+     return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+wedTrackWord);
     });
     var wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
 
