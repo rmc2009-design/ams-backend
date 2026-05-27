@@ -192,14 +192,22 @@ async function insertBlockFromTemplate(dayId, templateId, label, order, type) {
     .select('*').eq('template_id', templateId).order('exercise_order');
   if (exR.error || !exR.data.length) return;
   for (var i = 0; i < exR.data.length; i++) {
-    var ex = exR.data[i];
-    await supabase.from('workout_exercises').insert({
-      block_id: blockId, exercise_name: ex.exercise_name,
-      exercise_order: ex.exercise_order, sets: ex.sets,
-      tempo: ex.tempo, rest: ex.rest, notes: ex.notes,
+ var ex = exR.data[i];
+var exIns = await supabase.from('workout_exercises').insert({
+  block_id: blockId, exercise_name: ex.exercise_name,
+  exercise_order: ex.exercise_order, sets: ex.sets,
+  tempo: ex.tempo, rest: ex.rest, notes: ex.notes,
+}).select();
+if (!exIns.error && exIns.data[0] && ex.default_reps) {
+  for (var w = 1; w <= 4; w++) {
+    await supabase.from('workout_progressions').insert({
+      workout_exercise_id: exIns.data[0].id,
+      week_number: w,
+      reps: ex.default_reps,
     });
   }
-}
+} 
+
 
 async function insertStandardBlocks(dayId, startOrder) {
   var posteriorBlock = await supabase.from('workout_blocks').insert({
