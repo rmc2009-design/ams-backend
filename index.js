@@ -306,18 +306,62 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
     var warmups = templates.data.filter(function(t) {
       return t.template_type === 'warmup' && t.name.toLowerCase().includes(trackWord);
     });
-    var block1 = templates.data.filter(function(t) {
-      return t.template_type === 'block' && t.name.toLowerCase().includes(trackWord);
-    });
+
+    var block1 = [];
+    var phase = a.current_phase || 1;
+    var pathway = a.prescribed_pathway || null;
+
+    if (phase >= 2 && pathway) {
+      // Phase 2+ uses pathway-specific block templates
+      var pathwayMap = {
+        'flywheel': 'phase 2 flywheel block 1 mon',
+        'eccentric_progression': 'phase 2 eccentric motor learning block 1 mon',
+        'dual_deficit': 'phase 2 dual deficit block 1 mon',
+        'force_isometrics': 'phase 2 force block 1 mon',
+        'speed_power': 'phase 2 speed power block 1 mon',
+        'timing': 'phase 2 flywheel block 1 mon',
+        'peak_power': 'phase 2 speed power block 1 mon',
+      };
+      var pathwayKey = pathwayMap[pathway] || null;
+      if (pathwayKey) {
+        block1 = templates.data.filter(function(t) {
+          return t.template_type === 'block' && t.name.toLowerCase() === pathwayKey;
+        });
+      }
+    } else {
+      // Phase 1 uses track-specific block templates
+      block1 = templates.data.filter(function(t) {
+        return t.template_type === 'block' && t.name.toLowerCase().includes(trackWord);
+      });
+    }
     var wedBlocks = templates.data.filter(function(t) {
       return t.template_type === 'block' && t.name.toLowerCase().includes(wedTrackWord);
     });
     var wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
 
-    var friBlocks = templates.data.filter(function(t) {
-      return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+friTrackWord);
-    });
-    var friBlock1Id = track === 'foot_ankle' ? (friBlocks.length ? friBlocks[0].id : null) : null;
+    var friBlocks;
+    if (phase >= 2 && pathway) {
+      var pathwayFriMap = {
+        'flywheel': 'phase 2 flywheel block 1 fri',
+        'eccentric_progression': 'phase 2 eccentric motor learning block 1 fri',
+        'dual_deficit': 'phase 2 eccentric motor learning block 1 fri',
+        'force_isometrics': 'phase 2 eccentric motor learning block 1 fri',
+        'speed_power': 'phase 2 eccentric motor learning block 1 fri',
+        'timing': 'phase 2 flywheel block 1 fri',
+        'peak_power': 'phase 2 flywheel block 1 fri',
+      };
+      var pathwayFriKey = pathwayFriMap[pathway] || null;
+      friBlocks = pathwayFriKey ? templates.data.filter(function(t) {
+        return t.template_type === 'block' && t.name.toLowerCase() === pathwayFriKey;
+      }) : [];
+      // For phase 2, always set fri block
+      var friBlock1Id = friBlocks.length ? friBlocks[0].id : null;
+    } else {
+      friBlocks = templates.data.filter(function(t) {
+        return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+friTrackWord);
+      });
+      var friBlock1Id = track === 'foot_ankle' ? (friBlocks.length ? friBlocks[0].id : null) : null;
+    }
 
     res.json({
       track: track,
