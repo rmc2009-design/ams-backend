@@ -459,7 +459,7 @@ function showNewProgram(){
     if(!s.track){sb.innerHTML='<div class="em">No assessment on file. Enter assessment first.</div>';return;}
     _wedBlock1Id=s.wed_block1_id||null;
     _friBlock1Id=s.fri_block1_id||null;
-    window._suggestPhase=s.phase||1;
+    window._suggestPhase=parseInt(s.phase)||1;
     var h='<div style="padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;margin-bottom:12px;font-size:12px"><strong>Track: '+s.track.replace(/_/g,' ').toUpperCase()+'</strong>';
     if(s.pathway)h+=' | Pathway: <strong>'+pathwayLabel(s.pathway)+'</strong>';
     h+='</div>';
