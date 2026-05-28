@@ -463,12 +463,14 @@ function showNewProgram(){
     if(s.pathway)h+=' | Pathway: <strong>'+pathwayLabel(s.pathway)+'</strong>';
     h+='</div>';
     if(s.warmup_suggestions&&s.warmup_suggestions.length){
-      h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px">SUGGESTED WARM-UP</div>';
-      for(var i=0;i<s.warmup_suggestions.length;i++){var t=s.warmup_suggestions[i];h+='<div class="suggest-item" id="wu-'+i+'" onclick="pickSel(\'wu\',\''+t.id+'\',\'wu-'+i+'\')">'+t.name+'</div>';}
+      _picks['wu']=s.warmup_suggestions[0].id;
+      h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px">WARM-UP</div>';
+      for(var i=0;i<s.warmup_suggestions.length;i++){var t=s.warmup_suggestions[i];h+='<div class="suggest-item'+(i===0?' selected':'')+' " id="wu-'+i+'" onclick="pickSel(\'wu\',\''+t.id+'\',\'wu-'+i+'\')">'+t.name+'</div>';}
     }
     if(s.block1_suggestions&&s.block1_suggestions.length){
-      h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin:10px 0 6px">SUGGESTED BLOCK 1 (Mon/Fri)</div>';
-      for(var i=0;i<s.block1_suggestions.length;i++){var t=s.block1_suggestions[i];h+='<div class="suggest-item" id="b1-'+i+'" onclick="pickSel(\'b1\',\''+t.id+'\',\'b1-'+i+'\')">'+t.name+'</div>';}
+      _picks['b1']=s.block1_suggestions[0].id;
+      h+='<div style="font-size:11px;font-weight:700;color:#64748b;margin:10px 0 6px">BLOCK 1 (Mon/Fri) - click to change</div>';
+      for(var i=0;i<s.block1_suggestions.length;i++){var t=s.block1_suggestions[i];h+='<div class="suggest-item'+(i===0?' selected':'')+' " id="b1-'+i+'" onclick="pickSel(\'b1\',\''+t.id+'\',\'b1-'+i+'\')">'+t.name+'</div>';}
     }
     if(_wedBlock1Id){h+='<div style="font-size:11px;color:#64748b;margin-top:8px">Wednesday Block 1 auto-assigned (opposite track)</div>';}
     sb.innerHTML=h;
