@@ -158,7 +158,8 @@ app.post('/api/programs/:id/build', async function(req, res) {
     var warmupTemplateId = req.body.warmup_template_id || null;
     var block1TemplateId = req.body.block1_template_id || null;
     var wedBlock1Id = req.body.wed_block1_id || null;
-    var buildPhase = req.body.phase || 1;
+    var buildPhase = parseInt(req.body.phase) || 1;
+    console.log('BUILD phase:', buildPhase, 'raw:', req.body.phase);
 
     var days = [
       { name: 'Monday', order: 1 },
