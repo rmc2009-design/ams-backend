@@ -159,7 +159,6 @@ app.post('/api/programs/:id/build', async function(req, res) {
     var block1TemplateId = req.body.block1_template_id || null;
     var wedBlock1Id = req.body.wed_block1_id || null;
     var buildPhase = parseInt(req.body.phase) || 1;
-    console.log('BUILD phase:', buildPhase, 'raw:', req.body.phase);
 
     var days = [
       { name: 'Monday', order: 1 },
@@ -183,7 +182,15 @@ app.post('/api/programs/:id/build', async function(req, res) {
       } else if (day.name === 'Wednesday') {
         if (warmupTemplateId) await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
         if (wedBlock1Id) await insertBlockFromTemplate(dayId, wedBlock1Id, '1', 1, 'superset');
-        await insertStandardBlocks(dayId, 2, buildPhase);
+        if (buildPhase >= 2) {
+          // Use dedicated Phase 2 Wednesday blocks
+          var wed2 = await supabase.from('block_templates').select('id').eq('name','Phase 2 Wednesday Block 2').maybeSingle();
+          var wed3 = await supabase.from('block_templates').select('id').eq('name','Phase 2 Wednesday Block 3').maybeSingle();
+          if (wed2.data) await insertBlockFromTemplate(dayId, wed2.data.id, '2', 2, 'superset');
+          if (wed3.data) await insertBlockFromTemplate(dayId, wed3.data.id, '3', 3, 'superset');
+        } else {
+          await insertStandardBlocks(dayId, 2, buildPhase);
+        }
       } else if (day.name === 'Friday') {
         if (warmupTemplateId) await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
         var friId = req.body.fri_block1_id || block1TemplateId;
@@ -349,10 +356,22 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
         return t.template_type === 'block' && t.name.toLowerCase().includes(trackWord);
       });
     }
-    var wedBlocks = templates.data.filter(function(t) {
-      return t.template_type === 'block' && t.name.toLowerCase().includes(wedTrackWord);
-    });
-    var wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
+    var wedBlock1Id = null;
+    if (phase >= 2 && pathway) {
+      var flywheelPathways = ['flywheel', 'timing', 'peak_power'];
+      var wedTplName = flywheelPathways.indexOf(pathway) >= 0
+        ? 'phase 2 wednesday flywheel block 1'
+        : 'phase 2 wednesday eccentric block 1';
+      var wedTpl = templates.data.filter(function(t) {
+        return t.name.toLowerCase() === wedTplName;
+      });
+      wedBlock1Id = wedTpl.length ? wedTpl[0].id : null;
+    } else {
+      var wedBlocks = templates.data.filter(function(t) {
+        return t.template_type === 'block' && t.name.toLowerCase().includes('hip '+wedTrackWord);
+      });
+      wedBlock1Id = wedBlocks.length ? wedBlocks[0].id : null;
+    }
 
     var friBlocks;
     if (phase >= 2 && pathway) {
@@ -387,6 +406,62 @@ app.get('/api/suggest/:athleteId', async function(req, res) {
       wed_block1_id: wedBlock1Id,
       fri_block1_id: friBlock1Id,
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.get('/api/templates', async function(req, res) {
+  try {
+    var r = await supabase.from('block_templates')
+      .select('*, block_template_exercises(*)')
+      .order('template_type').order('name');
+    if (r.error) throw r.error;
+    // Sort exercises within each template
+    r.data.forEach(function(t) {
+      if (t.block_template_exercises) {
+        t.block_template_exercises.sort(function(a,b){return a.exercise_order-b.exercise_order;});
+      }
+    });
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/templates', async function(req, res) {
+  try {
+    var t = req.body;
+    var r = await supabase.from('block_templates').insert({
+      name: t.name,
+      template_type: t.template_type || 'block',
+      focus_area: t.focus_area || null,
+      notes: t.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    var tid = r.data[0].id;
+    if (t.exercises && t.exercises.length) {
+      for (var i = 0; i < t.exercises.length; i++) {
+        var ex = t.exercises[i];
+        await supabase.from('block_template_exercises').insert({
+          template_id: tid,
+          exercise_name: ex.exercise_name,
+          exercise_order: i + 1,
+          sets: ex.sets || null,
+          tempo: ex.tempo || null,
+          rest: ex.rest || null,
+          default_reps: ex.default_reps || null,
+          notes: ex.notes || null,
+        });
+      }
+    }
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/templates/:id', async function(req, res) {
+  try {
+    await supabase.from('block_template_exercises').delete().eq('template_id', req.params.id);
+    var r = await supabase.from('block_templates').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
