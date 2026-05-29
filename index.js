@@ -182,6 +182,7 @@ app.post('/api/programs/:id/build', async function(req, res) {
       } else if (day.name === 'Wednesday') {
         if (warmupTemplateId) await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
         if (wedBlock1Id) await insertBlockFromTemplate(dayId, wedBlock1Id, '1', 1, 'superset');
+        console.log('Wednesday buildPhase:', buildPhase);
         if (buildPhase >= 2) {
           // Use dedicated Phase 2 Wednesday blocks
           var wed2 = await supabase.from('block_templates').select('id').eq('name','Phase 2 Wednesday Block 2').maybeSingle();
