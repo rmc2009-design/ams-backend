@@ -159,6 +159,7 @@ app.post('/api/programs/:id/build', async function(req, res) {
     var block1TemplateId = req.body.block1_template_id || null;
     var wedBlock1Id = req.body.wed_block1_id || null;
     var buildPhase = parseInt(req.body.phase) || 1;
+    console.log('BUILD ROUTE CALLED phase:', buildPhase, 'wed:', req.body.wed_block1_id);
 
     var days = [
       { name: 'Monday', order: 1 },
