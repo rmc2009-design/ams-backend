@@ -216,7 +216,22 @@ tr:last-child td { border-bottom:none; }
       </div>
     </div>
   </div>
-  <div id="swap-panel" style="display:none;position:fixed;top:0;right:0;width:380px;height:100vh;background:white;border-left:1px solid #e2e8f0;z-index:1000;overflow-y:auto;padding:20px;box-shadow:-4px 0 12px rgba(0,0,0,0.1)">
+  <div id="block-swap-panel" style="display:none;position:fixed;top:0;left:0;width:380px;height:100vh;background:white;border-right:1px solid #e2e8f0;z-index:1000;overflow-y:auto;padding:20px;box-shadow:4px 0 12px rgba(0,0,0,0.1)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:14px">Swap Block</h3>
+      <button onclick="closeBlockSwap()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">x</button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px">Replacing: <strong id="block-swap-label"></strong></div>
+    <input type="text" id="block-swap-search" class="inp" placeholder="Search templates..." oninput="filterBlockTemplates()" style="margin-bottom:8px">
+    <select id="block-swap-type" class="sel" style="margin-bottom:12px" onchange="filterBlockTemplates()">
+      <option value="">All types</option>
+      <option value="warmup">Warmup</option>
+      <option value="block">Block</option>
+      <option value="cooldown">Cooldown</option>
+    </select>
+    <div id="block-swap-list"><div class="em">Loading...</div></div>
+  </div>
+  <div id="swap-panel"  style="display:none;position:fixed;top:0;right:0;width:380px;height:100vh;background:white;border-left:1px solid #e2e8f0;z-index:1000;overflow-y:auto;padding:20px;box-shadow:-4px 0 12px rgba(0,0,0,0.1)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h3 style="font-size:14px">Swap Exercise</h3>
       <button onclick="closeSwap()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">x</button>
@@ -625,7 +640,7 @@ function renderProgramDays(id){
         var block=blocks[b];var exs=block.workout_exercises||[];
         exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
         if(!exs.length)continue;
-        h+='<div class="blk-lbl">Block '+block.block_label+'</div>';
+        h+='<div class="blk-lbl" data-blockid="'+block.id+'" data-blocklabel="'+block.block_label+'" style="cursor:pointer" title="Click to swap block" onclick="openBlockSwap(this.getAttribute(\'data-blockid\'),this.getAttribute(\'data-blocklabel\'))">Block '+block.block_label+' <span style="color:#2563eb;font-size:9px">↔ swap</span></div>';
         h+='<table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Reps Wk'+week+'</th><th>Weight</th></tr></thead><tbody>';
         for(var e=0;e<exs.length;e++){
           var ex=exs[e];var prog=null;var progs=ex.workout_progressions||[];
@@ -879,6 +894,71 @@ function doCopy() {
       if (d.error) { m.className = 'mt er'; m.textContent = 'Error: '+d.error; }
       else { m.className = 'mt ok'; m.textContent = 'Program copied! Select the athlete in Workouts to view it.'; document.getElementById('copy-form').style.display='none'; }
     }).catch(function(e){ m.className = 'mt er'; m.textContent = 'Failed: '+e.message; });
+}
+
+
+var _blockSwapId = null;
+var _allTemplatesForSwap = [];
+
+function openBlockSwap(blockId, blockLabel) {
+  _blockSwapId = blockId;
+  document.getElementById('block-swap-label').textContent = 'Block ' + blockLabel;
+  document.getElementById('block-swap-panel').style.display = 'block';
+  document.getElementById('block-swap-search').value = '';
+  document.getElementById('block-swap-type').value = '';
+  if (_allTemplatesForSwap.length) {
+    renderBlockSwapList(_allTemplatesForSwap);
+  } else {
+    fetch('/api/templates').then(function(r){return r.json();}).then(function(data){
+      _allTemplatesForSwap = data;
+      renderBlockSwapList(data);
+    });
+  }
+}
+
+function closeBlockSwap() {
+  document.getElementById('block-swap-panel').style.display = 'none';
+  _blockSwapId = null;
+}
+
+function filterBlockTemplates() {
+  var search = document.getElementById('block-swap-search').value.toLowerCase();
+  var type = document.getElementById('block-swap-type').value;
+  var filtered = _allTemplatesForSwap.filter(function(t) {
+    var matchType = !type || t.template_type === type;
+    var matchSearch = !search || t.name.toLowerCase().includes(search);
+    return matchType && matchSearch;
+  });
+  renderBlockSwapList(filtered);
+}
+
+function renderBlockSwapList(templates) {
+  var el = document.getElementById('block-swap-list');
+  if (!templates.length) { el.innerHTML = '<div class="em">No templates found.</div>'; return; }
+  var h = '';
+  templates.forEach(function(t) {
+    h += '<div class="prog-item swap-block-item" data-tid="' + t.id + '">';
+    h += '<div style="font-weight:600;font-size:13px">' + t.name + '</div>';
+    h += '<div style="font-size:11px;color:#64748b">' + t.template_type + (t.focus_area ? ' · ' + t.focus_area : '') + (t.block_template_exercises ? ' · ' + t.block_template_exercises.length + ' exercises' : '') + '</div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+  el.onclick = function(evt) {
+    var item = evt.target.closest('.swap-block-item');
+    if (item) doBlockSwap(item.getAttribute('data-tid'));
+  };
+}
+
+function doBlockSwap(templateId) {
+  if (!_blockSwapId) return;
+  fetch('/api/workout-blocks/' + _blockSwapId + '/swap', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({template_id: templateId})
+  }).then(function(r){return r.json();}).then(function(){
+    closeBlockSwap();
+    if (currentProgramId) renderProgramDays(currentProgramId);
+  });
 }
 
 
