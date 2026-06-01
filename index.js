@@ -560,6 +560,53 @@ app.post('/api/programs/:id/copy', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.post('/api/workout-blocks/:id/swap', async function(req, res) {
+  try {
+    var blockId = req.params.id;
+    var templateId = req.body.template_id;
+
+    // Delete existing exercises and progressions
+    var exR = await supabase.from('workout_exercises').select('id').eq('block_id', blockId);
+    if (!exR.error && exR.data.length) {
+      for (var i = 0; i < exR.data.length; i++) {
+        await supabase.from('workout_progressions').delete().eq('workout_exercise_id', exR.data[i].id);
+      }
+      await supabase.from('workout_exercises').delete().eq('block_id', blockId);
+    }
+
+    // Insert new exercises from template
+    var tplR = await supabase.from('block_template_exercises')
+      .select('*').eq('template_id', templateId).order('exercise_order');
+    if (tplR.error) throw tplR.error;
+
+    for (var i = 0; i < tplR.data.length; i++) {
+      var ex = tplR.data[i];
+      var newEx = await supabase.from('workout_exercises').insert({
+        block_id: blockId,
+        exercise_name: ex.exercise_name,
+        exercise_order: ex.exercise_order,
+        sets: ex.sets,
+        tempo: ex.tempo,
+        rest: ex.rest,
+        notes: ex.notes,
+      }).select();
+      if (newEx.error) continue;
+      if (newEx.data[0] && ex.default_reps) {
+        for (var w = 1; w <= 4; w++) {
+          await supabase.from('workout_progressions').insert({
+            workout_exercise_id: newEx.data[0].id,
+            week_number: w,
+            reps: ex.default_reps,
+          });
+        }
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
