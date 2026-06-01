@@ -1003,13 +1003,13 @@ function printProgram() {
   var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>'+css+'</style></head><body>';
   h += '<h2>'+programTitle+'</h2><p class="sub">'+athlete+'</p>';
 
-  // Use stored program data
-  if (!window._programDaysData || !window._programDaysData.length) {
-    alert('Please open a program first.');
-    return;
-  }
+  // Fetch fresh data with all progressions
+  fetch('/api/programs/'+currentProgramId+'/days').then(function(r){return r.json();}).then(function(days){
+    buildPrintWindow(days, programTitle, athlete);
+  });
+}
 
-  var days = window._programDaysData;
+function buildPrintWindow(days, programTitle, athlete) {
   days.sort(function(a,b){return a.day_order-b.day_order;});
   for (var d = 0; d < days.length; d++) {
     var day = days[d];
