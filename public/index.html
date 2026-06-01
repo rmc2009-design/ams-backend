@@ -593,7 +593,7 @@ function renderProgramDays(id){
         for(var e=0;e<exs.length;e++){
           var ex=exs[e];var prog=null;var progs=ex.workout_progressions||[];
           for(var p=0;p<progs.length;p++){if(progs[p].week_number==week){prog=progs[p];break;}}
-          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td><td class="editable-reps" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit reps">'+(prog&&prog.reps?prog.reps:'-')+'</td><td class="editable-weight" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit weight">'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
+          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+'</td><td class="editable-sets" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit sets">'+(ex.sets||'-')+'</td><td class="editable-tempo" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit tempo">'+(ex.tempo||'-')+'</td><td class="editable-rest" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit rest">'+(ex.rest||'-')+'</td><td class="editable-reps" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit reps">'+(prog&&prog.reps?prog.reps:'-')+'</td><td class="editable-weight" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit weight">'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
         }
         h+='</tbody></table>';
       }
@@ -818,6 +818,18 @@ ld();
 
 document.getElementById('program-days').onclick=function(evt){
   var td=evt.target;
+  if(td.classList.contains('editable-sets')||td.classList.contains('editable-tempo')||td.classList.contains('editable-rest')){
+    var field=td.classList.contains('editable-sets')?'sets':td.classList.contains('editable-tempo')?'tempo':'rest';
+    var cur=td.textContent==='-'?'':td.textContent;
+    var val=prompt('Enter '+field+':',cur);
+    if(val!==null){
+      var exId=td.getAttribute('data-exid');
+      var body={};body[field]=val||null;
+      fetch('/api/workout-exercises/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
+    }
+    return;
+  }
   if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
     var isReps=td.classList.contains('editable-reps');
     var cur=td.textContent==='-'?'':td.textContent;
