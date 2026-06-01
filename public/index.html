@@ -670,6 +670,7 @@ function renderProgramDays(id){
       }
       h+='</div>';
     }
+    window._programDaysData = days;
     document.getElementById('program-days').innerHTML=h||'<div class="em">No exercises yet.</div>';
 
   });
@@ -987,64 +988,66 @@ function printProgram() {
   var athleteSel = document.getElementById('w-athlete');
   var athlete = athleteSel.options[athleteSel.selectedIndex].text;
 
-  fetch('/api/programs/'+currentProgramId+'/days').then(function(r){return r.json();}).then(function(days){
-    var css = [
-      'body{font-family:Arial,sans-serif;padding:20px;margin:0;}',
-      '.header{margin-bottom:16px;padding-bottom:10px;border-bottom:3px solid #000;}',
-      '.header h2{font-size:16px;margin:0 0 2px;}',
-      '.header p{font-size:11px;color:#555;margin:0;}',
-      '.day-hdr{font-weight:700;font-size:13px;padding:6px 0 4px;border-bottom:3px solid #000;margin:18px 0 8px;text-transform:uppercase;}',
-      '.blk-lbl{font-size:9px;font-weight:700;color:#333;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px;padding:3px 0;border-bottom:1px solid #999;}',
-      'table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;}',
-      'th{text-align:left;font-size:9px;padding:4px 5px;border:1px solid #999;background:#f0f0f0;text-transform:uppercase;font-weight:700;}',
-      'td{padding:4px 5px;border:1px solid #ccc;vertical-align:top;}',
-      'td:first-child{font-weight:600;min-width:160px;}',
-      '@media print{body{padding:10px;} .day-hdr{margin-top:12px;} .no-break{page-break-inside:avoid;}}',
-    ].join('');
+  var css = [
+    'body{font-family:Arial,sans-serif;padding:20px;margin:0;font-size:11px;}',
+    'h2{font-size:16px;margin:0 0 2px;}',
+    '.sub{font-size:11px;color:#555;margin:0 0 16px;padding-bottom:10px;border-bottom:3px solid #000;}',
+    '.day{margin-top:20px;margin-bottom:4px;font-weight:700;font-size:13px;padding:5px 0 4px;border-bottom:3px solid #000;text-transform:uppercase;}',
+    '.blk{font-size:9px;font-weight:700;color:#333;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px;padding:2px 0;border-bottom:1px solid #888;}',
+    'table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;}',
+    'th{text-align:left;font-size:9px;padding:4px 5px;border:1px solid #888;background:#e8e8e8;text-transform:uppercase;font-weight:700;}',
+    'td{padding:4px 5px;border:1px solid #bbb;}',
+    'td:first-child{font-weight:600;}',
+  ].join('');
 
-    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>'+css+'</style></head><body>';
-    h += '<div class="header"><h2>'+programTitle+'</h2><p>'+athlete+'</p></div>';
+  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>'+css+'</style></head><body>';
+  h += '<h2>'+programTitle+'</h2><p class="sub">'+athlete+'</p>';
 
-    days.sort(function(a,b){return a.day_order-b.day_order;});
-    for (var d = 0; d < days.length; d++) {
-      var day = days[d];
-      h += '<div class="no-break"><div class="day-hdr">'+day.day_name+'</div>';
-      var blocks = day.workout_blocks || [];
-      blocks.sort(function(a,b){return a.block_order-b.block_order;});
-      for (var b = 0; b < blocks.length; b++) {
-        var block = blocks[b];
-        var exs = block.workout_exercises || [];
-        exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
-        if (!exs.length) continue;
-        h += '<div class="blk-lbl">Block '+block.block_label+'</div>';
-        h += '<table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Wk 1</th><th>Wk 2</th><th>Wk 3</th><th>Wk 4</th><th>Weight</th></tr></thead><tbody>';
-        for (var e = 0; e < exs.length; e++) {
-          var ex = exs[e];
-          var progs = ex.workout_progressions || [];
-          var reps = {1:'-',2:'-',3:'-',4:'-'};
-          var weight = '-';
-          for (var p = 0; p < progs.length; p++) {
-            if (progs[p].week_number >= 1 && progs[p].week_number <= 4) {
-              reps[progs[p].week_number] = progs[p].reps || '-';
-              if (progs[p].weight) weight = progs[p].weight;
-            }
+  // Use stored program data
+  if (!window._programDaysData || !window._programDaysData.length) {
+    alert('Please open a program first.');
+    return;
+  }
+
+  var days = window._programDaysData;
+  days.sort(function(a,b){return a.day_order-b.day_order;});
+  for (var d = 0; d < days.length; d++) {
+    var day = days[d];
+    h += '<div class="day">'+day.day_name+'</div>';
+    var blocks = day.workout_blocks || [];
+    blocks.sort(function(a,b){return a.block_order-b.block_order;});
+    for (var b = 0; b < blocks.length; b++) {
+      var block = blocks[b];
+      var exs = block.workout_exercises || [];
+      exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
+      if (!exs.length) continue;
+      h += '<div class="blk">Block '+block.block_label+'</div>';
+      h += '<table><thead><tr><th style="width:35%">Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Wk 1</th><th>Wk 2</th><th>Wk 3</th><th>Wk 4</th><th>Weight</th></tr></thead><tbody>';
+      for (var e = 0; e < exs.length; e++) {
+        var ex = exs[e];
+        var progs = ex.workout_progressions || [];
+        var reps = {1:'-',2:'-',3:'-',4:'-'};
+        var weight = '-';
+        for (var p = 0; p < progs.length; p++) {
+          var wn = progs[p].week_number;
+          if (wn >= 1 && wn <= 4) {
+            reps[wn] = progs[p].reps || '-';
+            if (progs[p].weight) weight = progs[p].weight;
           }
-          h += '<tr><td>'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
-          h += '<td>'+reps[1]+'</td><td>'+reps[2]+'</td><td>'+reps[3]+'</td><td>'+reps[4]+'</td>';
-          h += '<td>'+weight+'</td></tr>';
         }
-        h += '</tbody></table>';
+        h += '<tr><td>'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
+        h += '<td>'+reps[1]+'</td><td>'+reps[2]+'</td><td>'+reps[3]+'</td><td>'+reps[4]+'</td><td>'+weight+'</td></tr>';
       }
-      h += '</div>';
+      h += '</tbody></table>';
     }
-    h += '</body></html>';
+  }
+  h += '</body></html>';
 
-    var win = window.open('', '_blank');
-    win.document.write(h);
-    win.document.close();
-    win.focus();
-    setTimeout(function(){win.print();}, 600);
-  });
+  var win = window.open('', '_blank');
+  win.document.write(h);
+  win.document.close();
+  win.focus();
+  setTimeout(function(){win.print();}, 500);
 }
 
 
