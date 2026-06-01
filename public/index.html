@@ -61,16 +61,17 @@ tr:last-child td { border-bottom:none; }
 .suggest-item.selected { background:#dbeafe; border-color:#2563eb; }
 
 @media print {
-  .top, .nav, .wrap > *:not(#pw), #pw > .two > div:first-child, #pw .two > div:last-child > div:not(#program-detail), .copy-form, #copy-form, #block-swap-panel, #swap-panel { display:none !important; }
-  .wrap { padding:0; max-width:100%; }
-  #program-detail { display:block !important; border:none; box-shadow:none; padding:0; }
+  body * { visibility:hidden; }
+  #program-detail, #program-detail * { visibility:visible; }
+  #program-detail { position:fixed; top:0; left:0; width:100%; padding:20px; }
+  #print-header { display:block !important; }
   .day-hdr { font-size:13px; padding:6px 0 4px; border-bottom:2px solid #000; }
   .blk-lbl { font-size:9px; margin:8px 0 2px; }
-  table { font-size:10px; }
+  table { font-size:10px; width:100%; }
   th { font-size:9px; }
   td { padding:4px; }
-  body { font-size:11px; }
-  #print-header { display:block !important; }
+  .btn, button, select { display:none !important; }
+  #copy-form { display:none !important; }
 }
 #print-header { display:none; padding:0 0 12px; border-bottom:2px solid #000; margin-bottom:16px; }
 #print-header h2 { font-size:16px; margin-bottom:4px; }
@@ -984,11 +985,31 @@ function printProgram() {
   if (!currentProgramId) return;
   var week = parseInt(document.getElementById('week-select').value) || 1;
   var programTitle = document.getElementById('program-title').textContent;
-  var athleteName = document.getElementById('w-athlete');
-  var athlete = athleteName.options[athleteName.selectedIndex].text;
-  document.getElementById('print-title').textContent = programTitle + ' — Week ' + week;
-  document.getElementById('print-athlete-name').textContent = athlete;
-  window.print();
+  var athleteSel = document.getElementById('w-athlete');
+  var athlete = athleteSel.options[athleteSel.selectedIndex].text;
+  var daysHtml = document.getElementById('program-days').innerHTML;
+
+  var win = window.open('', '_blank');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>');
+  win.document.write('body{font-family:Arial,sans-serif;padding:24px;max-width:900px;margin:0 auto;}');
+  win.document.write('.header{margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #000;}');
+  win.document.write('.header h2{font-size:18px;margin-bottom:4px;}');
+  win.document.write('.header p{font-size:12px;color:#64748b;}');
+  win.document.write('.day-hdr{font-weight:700;font-size:13px;padding:8px 0 4px;border-bottom:2px solid #2563eb;margin:20px 0 10px;}');
+  win.document.write('.blk-lbl{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 3px;}');
+  win.document.write('table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;}');
+  win.document.write('th{text-align:left;font-size:10px;color:#64748b;padding:4px 6px;border-bottom:1px solid #e2e8f0;text-transform:uppercase;}');
+  win.document.write('td{padding:5px 6px;border-bottom:1px solid #f1f5f9;}');
+  win.document.write('tr:last-child td{border-bottom:none;}');
+  win.document.write('.ex-swap{font-weight:500;color:#000 !important;cursor:default !important;}');
+  win.document.write('.blk-lbl span{display:none;}');
+  win.document.write('</style></head><body>');
+  win.document.write('<div class="header"><h2>'+programTitle+' — Week '+week+'</h2><p>'+athlete+'</p></div>');
+  win.document.write(daysHtml);
+  win.document.write('</body></html>');
+  win.document.close();
+  win.focus();
+  setTimeout(function(){win.print();}, 500);
 }
 
 
