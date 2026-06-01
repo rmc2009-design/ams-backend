@@ -159,7 +159,6 @@ app.post('/api/programs/:id/build', async function(req, res) {
     var block1TemplateId = req.body.block1_template_id || null;
     var wedBlock1Id = req.body.wed_block1_id || null;
     var buildPhase = parseInt(req.body.phase) || 1;
-    console.log('BUILD ROUTE CALLED phase:', buildPhase, 'wed:', req.body.wed_block1_id);
 
     var days = [
       { name: 'Monday', order: 1 },
@@ -183,7 +182,6 @@ app.post('/api/programs/:id/build', async function(req, res) {
       } else if (day.name === 'Wednesday') {
         if (warmupTemplateId) await insertBlockFromTemplate(dayId, warmupTemplateId, 'Warmup', 0, 'warmup');
         if (wedBlock1Id) await insertBlockFromTemplate(dayId, wedBlock1Id, '1', 1, 'superset');
-        console.log('Wednesday buildPhase:', buildPhase);
         if (buildPhase >= 2) {
           // Use dedicated Phase 2 Wednesday blocks
           var wed2 = await supabase.from('block_templates').select('id').eq('name','Phase 2 Wednesday Block 2').maybeSingle();
@@ -464,6 +462,101 @@ app.delete('/api/templates/:id', async function(req, res) {
     var r = await supabase.from('block_templates').delete().eq('id', req.params.id);
     if (r.error) throw r.error;
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.post('/api/programs/:id/copy', async function(req, res) {
+  try {
+    var sourceId = req.params.id;
+    var targetAthleteId = req.body.athlete_id;
+    var newName = req.body.name;
+
+    // Get source program
+    var progR = await supabase.from('programs').select('*').eq('id', sourceId).single();
+    if (progR.error) throw progR.error;
+    var srcProg = progR.data;
+
+    // Create new program
+    var newProgR = await supabase.from('programs').insert({
+      name: newName || srcProg.name + ' (copy)',
+      phase: srcProg.phase,
+      weeks: srcProg.weeks,
+      notes: srcProg.notes,
+    }).select();
+    if (newProgR.error) throw newProgR.error;
+    var newProgId = newProgR.data[0].id;
+
+    // Assign to athlete
+    await supabase.from('athlete_programs').upsert({
+      athlete_id: targetAthleteId,
+      program_id: newProgId,
+      active: true,
+    }, { onConflict: 'athlete_id,program_id' });
+
+    // Get source days with full exercise data
+    var daysR = await supabase.from('program_days')
+      .select('*, workout_blocks(*, workout_exercises(*, workout_progressions(*)))')
+      .eq('program_id', sourceId).order('day_order');
+    if (daysR.error) throw daysR.error;
+
+    // Copy each day
+    for (var d = 0; d < daysR.data.length; d++) {
+      var day = daysR.data[d];
+      var newDayR = await supabase.from('program_days').insert({
+        program_id: newProgId,
+        day_name: day.day_name,
+        day_order: day.day_order,
+        day_type: day.day_type,
+      }).select();
+      if (newDayR.error) continue;
+      var newDayId = newDayR.data[0].id;
+
+      var blocks = day.workout_blocks || [];
+      blocks.sort(function(a,b){return a.block_order-b.block_order;});
+
+      for (var b = 0; b < blocks.length; b++) {
+        var block = blocks[b];
+        var newBlockR = await supabase.from('workout_blocks').insert({
+          day_id: newDayId,
+          block_label: block.block_label,
+          block_order: block.block_order,
+          block_type: block.block_type,
+        }).select();
+        if (newBlockR.error) continue;
+        var newBlockId = newBlockR.data[0].id;
+
+        var exs = block.workout_exercises || [];
+        exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
+
+        for (var e = 0; e < exs.length; e++) {
+          var ex = exs[e];
+          var newExR = await supabase.from('workout_exercises').insert({
+            block_id: newBlockId,
+            exercise_name: ex.exercise_name,
+            exercise_order: ex.exercise_order,
+            sets: ex.sets,
+            tempo: ex.tempo,
+            rest: ex.rest,
+            notes: ex.notes,
+          }).select();
+          if (newExR.error) continue;
+          var newExId = newExR.data[0].id;
+
+          var progs = ex.workout_progressions || [];
+          for (var p = 0; p < progs.length; p++) {
+            await supabase.from('workout_progressions').insert({
+              workout_exercise_id: newExId,
+              week_number: progs[p].week_number,
+              reps: progs[p].reps,
+              weight: progs[p].weight,
+            });
+          }
+        }
+      }
+    }
+
+    res.json({ ok: true, program_id: newProgId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
