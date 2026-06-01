@@ -72,6 +72,7 @@ tr:last-child td { border-bottom:none; }
   <button onclick="sp('an',this)">Analysis</button>
   <button onclick="sp('as',this)">Assessments</button>
   <button onclick="sp('w',this)">Workouts</button>
+  <button onclick="sp('t',this)">Templates</button>
   <button onclick="sp('i',this)">Import</button>
 </div>
 <div class="wrap">
@@ -215,6 +216,54 @@ tr:last-child td { border-bottom:none; }
     </select>
     <div id="swap-list"><div class="em">Loading...</div></div>
   </div>
+  <div class="pg" id="pt">
+    <div class="two">
+      <div>
+        <div class="card">
+          <h3>Block Templates</h3>
+          <div style="display:flex;gap:8px;margin-bottom:16px">
+            <select id="tpl-filter" class="sel" style="margin-bottom:0;flex:1" onchange="loadTemplates()">
+              <option value="">All types</option>
+              <option value="warmup">Warmup</option>
+              <option value="block">Block</option>
+              <option value="cooldown">Cooldown</option>
+            </select>
+            <button class="btn" onclick="showNewTemplate()">+ New Template</button>
+          </div>
+          <div id="tpl-list"><div class="em">Loading...</div></div>
+        </div>
+      </div>
+      <div class="card" id="tpl-form" style="display:none">
+        <h3 id="tpl-form-title">New Template</h3>
+        <div class="form-row">
+          <div class="form-group"><label>Template Name</label><input type="text" id="tpl-name" class="inp" placeholder="e.g. RFD Phase 2 Block"></div>
+          <div class="form-group"><label>Type</label>
+            <select id="tpl-type" class="sel" style="margin-bottom:0">
+              <option value="block">Block</option>
+              <option value="warmup">Warmup</option>
+              <option value="cooldown">Cooldown</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Focus Area</label><input type="text" id="tpl-focus" class="inp" placeholder="e.g. Hip IR, Lower Body"></div>
+          <div class="form-group"><label>Notes</label><input type="text" id="tpl-notes" class="inp" placeholder="Optional description"></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:12px 0 8px">Exercises</div>
+        <div id="tpl-exercises"></div>
+        <button onclick="addTplExercise()" style="border:1px dashed #e2e8f0;background:none;padding:8px;width:100%;cursor:pointer;color:#64748b;border-radius:6px;margin-bottom:12px;font-size:12px">+ Add Exercise</button>
+        <button class="btn" onclick="saveTemplate()">Save Template</button>
+        <div id="tpl-result" class="mt"></div>
+      </div>
+      <div class="card" id="tpl-detail" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 id="tpl-detail-name" style="margin-bottom:0"></h3>
+          <button onclick="deleteTpl()" style="border:none;background:#fee2e2;color:#991b1b;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Delete</button>
+        </div>
+        <div id="tpl-detail-content"></div>
+      </div>
+    </div>
+  </div>
   <div class="pg" id="pi">
     <div class="card"><h3>Import 1080 Motion Data</h3>
       <div class="ub"><p>Upload an Excel export from your 1080 Sprint or Quantum.</p>
@@ -269,6 +318,7 @@ function sp(n,btn){
   if(n==='an'){fetchAthletes(function(){populateSel('an-athlete');la();});}
   if(n==='as'){fetchAthletes(function(){populateSel('as-athlete');document.getElementById('as-date').value=new Date().toISOString().split('T')[0];});}
   if(n==='w'){fetchAthletes(function(){populateSel('w-athlete');});}
+  if(n==='t'){loadTemplates();}
 }
 
 function bx(t,c){return '<span class="b '+c+'">'+t+'</span>';}
@@ -637,6 +687,132 @@ function doSwap(newName) {
     if (currentProgramId) renderProgramDays(currentProgramId);
   });
 }
+
+var _tplExCount = 0;
+var _currentTplId = null;
+
+function loadTemplates() {
+  var filter = document.getElementById('tpl-filter') ? document.getElementById('tpl-filter').value : '';
+  fetch('/api/templates').then(function(r){return r.json();}).then(function(data){
+    var el = document.getElementById('tpl-list');
+    if (!data.length) { el.innerHTML = '<div class="em">No templates yet.</div>'; return; }
+    var filtered = filter ? data.filter(function(t){return t.template_type===filter;}) : data;
+    var grouped = {};
+    filtered.forEach(function(t){
+      if (!grouped[t.template_type]) grouped[t.template_type] = [];
+      grouped[t.template_type].push(t);
+    });
+    var h = '';
+    ['warmup','block','cooldown'].forEach(function(type) {
+      if (!grouped[type] || !grouped[type].length) return;
+      h += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:12px 0 6px">'+type+'s</div>';
+      grouped[type].forEach(function(t) {
+        h += '<div class="prog-item" data-tid="'+t.id+'" data-tname="'+t.name.replace(/"/g,'')+'" onclick="showTplDetail(this.dataset.tid,this.dataset.tname)">';
+        h += '<div style="font-weight:600;font-size:13px">'+t.name+'</div>';
+        h += '<div style="font-size:11px;color:#64748b">'+(t.focus_area||'')+(t.block_template_exercises?' · '+(t.block_template_exercises.length)+' exercises':'')+'</div>';
+        h += '</div>';
+      });
+    });
+    el.innerHTML = h;
+    window._allTemplatesCache = data;
+  });
+}
+
+function showTplDetail(id, name) {
+  _currentTplId = id;
+  document.getElementById('tpl-form').style.display = 'none';
+  document.getElementById('tpl-detail').style.display = 'block';
+  document.getElementById('tpl-detail-name').textContent = name;
+  var cache = window._allTemplatesCache || [];
+  var tpl = null;
+  for (var i = 0; i < cache.length; i++) { if (cache[i].id === id) { tpl = cache[i]; break; } }
+  if (!tpl) { document.getElementById('tpl-detail-content').innerHTML = '<div class="em">Loading...</div>'; return; }
+  var exs = tpl.block_template_exercises || [];
+  var h = '<div style="font-size:12px;color:#64748b;margin-bottom:12px">'+tpl.template_type+(tpl.focus_area?' · '+tpl.focus_area:'')+'</div>';
+  if (tpl.notes) h += '<div style="font-size:12px;color:#374151;margin-bottom:12px">'+tpl.notes+'</div>';
+  h += '<table><thead><tr><th>Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Default Reps</th></tr></thead><tbody>';
+  exs.forEach(function(ex) {
+    h += '<tr><td style="font-weight:500">'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td><td>'+(ex.default_reps||'-')+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('tpl-detail-content').innerHTML = h;
+}
+
+function showNewTemplate() {
+  _currentTplId = null;
+  _tplExCount = 0;
+  document.getElementById('tpl-detail').style.display = 'none';
+  document.getElementById('tpl-form').style.display = 'block';
+  document.getElementById('tpl-form-title').textContent = 'New Template';
+  document.getElementById('tpl-name').value = '';
+  document.getElementById('tpl-focus').value = '';
+  document.getElementById('tpl-notes').value = '';
+  document.getElementById('tpl-exercises').innerHTML = '';
+  document.getElementById('tpl-result').style.display = 'none';
+  addTplExercise();
+}
+
+function addTplExercise() {
+  _tplExCount++;
+  var n = _tplExCount;
+  var div = document.createElement('div');
+  div.id = 'tpl-ex-'+n;
+  div.style.cssText = 'border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-bottom:8px';
+  div.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;font-weight:600;color:#64748b">Exercise '+n+'</span><button onclick="this.parentElement.parentElement.remove()" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:16px">×</button></div>'
+    + '<div class="form-row"><div class="form-group"><label>Name</label><input type="text" id="tplex-name-'+n+'" class="inp" placeholder="e.g. 1A) FFE Split Squat"></div><div class="form-group"><label>Sets</label><input type="number" id="tplex-sets-'+n+'" class="inp" placeholder="e.g. 3"></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Tempo</label><input type="text" id="tplex-tempo-'+n+'" class="inp" placeholder="e.g. 3.3.1"></div><div class="form-group"><label>Rest</label><input type="text" id="tplex-rest-'+n+'" class="inp" placeholder="e.g. :60"></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Default Reps</label><input type="text" id="tplex-reps-'+n+'" class="inp" placeholder="e.g. 8e"></div><div class="form-group"><label>Notes</label><input type="text" id="tplex-notes-'+n+'" class="inp" placeholder="Optional"></div></div>';
+  document.getElementById('tpl-exercises').appendChild(div);
+}
+
+function saveTemplate() {
+  var name = document.getElementById('tpl-name').value.trim();
+  if (!name) { alert('Enter a template name.'); return; }
+  var exercises = [];
+  var exDivs = document.getElementById('tpl-exercises').children;
+  for (var i = 0; i < exDivs.length; i++) {
+    var id = exDivs[i].id.replace('tpl-ex-','');
+    var exName = document.getElementById('tplex-name-'+id);
+    if (exName && exName.value.trim()) {
+      exercises.push({
+        exercise_name: exName.value.trim(),
+        sets: parseInt(document.getElementById('tplex-sets-'+id).value)||null,
+        tempo: document.getElementById('tplex-tempo-'+id).value||null,
+        rest: document.getElementById('tplex-rest-'+id).value||null,
+        default_reps: document.getElementById('tplex-reps-'+id).value||null,
+        notes: document.getElementById('tplex-notes-'+id).value||null,
+      });
+    }
+  }
+  var payload = {
+    name: name,
+    template_type: document.getElementById('tpl-type').value,
+    focus_area: document.getElementById('tpl-focus').value||null,
+    notes: document.getElementById('tpl-notes').value||null,
+    exercises: exercises,
+  };
+  var m = document.getElementById('tpl-result');
+  m.style.display = 'block'; m.className = 'mt'; m.textContent = 'Saving...';
+  fetch('/api/templates', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { m.className = 'mt er'; m.textContent = 'Error: '+d.error; }
+      else { m.className = 'mt ok'; m.textContent = 'Template saved!'; loadTemplates(); document.getElementById('tpl-form').style.display='none'; }
+    }).catch(function(e){ m.className = 'mt er'; m.textContent = 'Failed: '+e.message; });
+}
+
+function deleteTpl() {
+  if (!_currentTplId) return;
+  if (!confirm('Delete this template? This cannot be undone.')) return;
+  fetch('/api/templates/'+_currentTplId, {method:'DELETE'})
+    .then(function(r){return r.json();})
+    .then(function(){
+      document.getElementById('tpl-detail').style.display = 'none';
+      _currentTplId = null;
+      loadTemplates();
+    });
+}
+
 
 ld();
 
