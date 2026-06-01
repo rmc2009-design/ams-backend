@@ -607,6 +607,53 @@ app.post('/api/workout-blocks/:id/swap', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.get('/api/programs/:id/print', async function(req, res) {
+  try {
+    var programId = req.params.id;
+    
+    // Get days and blocks and exercises
+    var daysR = await supabase.from('program_days')
+      .select('*, workout_blocks(*, workout_exercises(*))')
+      .eq('program_id', programId).order('day_order');
+    if (daysR.error) throw daysR.error;
+
+    // Get all exercise IDs
+    var exIds = [];
+    daysR.data.forEach(function(day) {
+      (day.workout_blocks || []).forEach(function(block) {
+        (block.workout_exercises || []).forEach(function(ex) {
+          exIds.push(ex.id);
+        });
+      });
+    });
+
+    // Fetch all progressions for these exercises
+    var progsR = await supabase.from('workout_progressions')
+      .select('*')
+      .in('workout_exercise_id', exIds);
+    if (progsR.error) throw progsR.error;
+
+    // Map progressions to exercises
+    var progMap = {};
+    progsR.data.forEach(function(p) {
+      if (!progMap[p.workout_exercise_id]) progMap[p.workout_exercise_id] = [];
+      progMap[p.workout_exercise_id].push(p);
+    });
+
+    // Attach progressions to exercises
+    daysR.data.forEach(function(day) {
+      (day.workout_blocks || []).forEach(function(block) {
+        (block.workout_exercises || []).forEach(function(ex) {
+          ex.workout_progressions = progMap[ex.id] || [];
+        });
+      });
+    });
+
+    res.json(daysR.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
