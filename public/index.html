@@ -988,101 +988,51 @@ function printProgram() {
   var athleteSel = document.getElementById('w-athlete');
   var athlete = athleteSel.options[athleteSel.selectedIndex].text;
 
-  var css = [
-    'body{font-family:Arial,sans-serif;padding:20px;margin:0;font-size:11px;}',
-    'h2{font-size:16px;margin:0 0 2px;}',
-    '.sub{font-size:11px;color:#555;margin:0 0 16px;padding-bottom:10px;border-bottom:3px solid #000;}',
-    '.day{margin-top:20px;margin-bottom:4px;font-weight:700;font-size:13px;padding:5px 0 4px;border-bottom:3px solid #000;text-transform:uppercase;}',
-    '.blk{font-size:9px;font-weight:700;color:#333;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px;padding:2px 0;border-bottom:1px solid #888;}',
-    'table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;}',
-    'th{text-align:left;font-size:9px;padding:4px 5px;border:1px solid #888;background:#e8e8e8;text-transform:uppercase;font-weight:700;}',
-    'td{padding:4px 5px;border:1px solid #bbb;}',
-    'td:first-child{font-weight:600;}',
-  ].join('');
-
-  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>'+css+'</style></head><body>';
-  h += '<h2>'+programTitle+'</h2><p class="sub">'+athlete+'</p>';
-
-  // Fetch fresh data with all progressions
   fetch('/api/programs/'+currentProgramId+'/days').then(function(r){return r.json();}).then(function(days){
-    buildPrintWindow(days, programTitle, athlete);
+    var css = 'body{font-family:Arial,sans-serif;padding:20px;margin:0;font-size:11px;}h2{font-size:16px;margin:0 0 2px;}.sub{font-size:11px;color:#555;margin:0 0 16px;padding-bottom:10px;border-bottom:3px solid #000;}.day{margin-top:18px;margin-bottom:4px;font-weight:700;font-size:13px;padding:5px 0 4px;border-bottom:3px solid #000;text-transform:uppercase;}.blk{font-size:9px;font-weight:700;color:#333;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 2px;padding:2px 0;border-bottom:1px solid #888;}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px;}th{text-align:left;font-size:9px;padding:4px 5px;border:1px solid #888;background:#e8e8e8;text-transform:uppercase;font-weight:700;}td{padding:4px 5px;border:1px solid #bbb;}td:first-child{font-weight:600;}';
+
+    var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+programTitle+'</title><style>'+css+'</style></head><body>';
+    h += '<h2>'+programTitle+'</h2><p class="sub">'+athlete+'</p>';
+
+    days.sort(function(a,b){return a.day_order-b.day_order;});
+    for (var d = 0; d < days.length; d++) {
+      var day = days[d];
+      h += '<div class="day">'+day.day_name+'</div>';
+      var blocks = day.workout_blocks || [];
+      blocks.sort(function(a,b){return a.block_order-b.block_order;});
+      for (var b = 0; b < blocks.length; b++) {
+        var block = blocks[b];
+        var exs = block.workout_exercises || [];
+        exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
+        if (!exs.length) continue;
+        h += '<div class="blk">Block '+block.block_label+'</div>';
+        h += '<table><thead><tr><th style="width:35%">Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Wk 1</th><th>Wk 2</th><th>Wk 3</th><th>Wk 4</th><th>Weight</th></tr></thead><tbody>';
+        for (var e = 0; e < exs.length; e++) {
+          var ex = exs[e];
+          var progs = ex.workout_progressions || [];
+          var reps = {1:'-',2:'-',3:'-',4:'-'};
+          var weight = '-';
+          for (var p = 0; p < progs.length; p++) {
+            var wn = progs[p].week_number;
+            if (wn >= 1 && wn <= 4) {
+              reps[wn] = progs[p].reps || '-';
+              if (progs[p].weight) weight = progs[p].weight;
+            }
+          }
+          h += '<tr><td>'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
+          h += '<td>'+reps[1]+'</td><td>'+reps[2]+'</td><td>'+reps[3]+'</td><td>'+reps[4]+'</td><td>'+weight+'</td></tr>';
+        }
+        h += '</tbody></table>';
+      }
+    }
+    h += '</body></html>';
+
+    var win = window.open('', '_blank');
+    win.document.write(h);
+    win.document.close();
+    win.focus();
+    setTimeout(function(){win.print();}, 500);
   });
 }
 
-function buildPrintWindow(days, programTitle, athlete) {
-  days.sort(function(a,b){return a.day_order-b.day_order;});
-  for (var d = 0; d < days.length; d++) {
-    var day = days[d];
-    h += '<div class="day">'+day.day_name+'</div>';
-    var blocks = day.workout_blocks || [];
-    blocks.sort(function(a,b){return a.block_order-b.block_order;});
-    for (var b = 0; b < blocks.length; b++) {
-      var block = blocks[b];
-      var exs = block.workout_exercises || [];
-      exs.sort(function(a,b){return a.exercise_order-b.exercise_order;});
-      if (!exs.length) continue;
-      h += '<div class="blk">Block '+block.block_label+'</div>';
-      h += '<table><thead><tr><th style="width:35%">Exercise</th><th>Sets</th><th>Tempo</th><th>Rest</th><th>Wk 1</th><th>Wk 2</th><th>Wk 3</th><th>Wk 4</th><th>Weight</th></tr></thead><tbody>';
-      for (var e = 0; e < exs.length; e++) {
-        var ex = exs[e];
-        var progs = ex.workout_progressions || [];
-        var reps = {1:'-',2:'-',3:'-',4:'-'};
-        var weight = '-';
-        for (var p = 0; p < progs.length; p++) {
-          var wn = progs[p].week_number;
-          if (wn >= 1 && wn <= 4) {
-            reps[wn] = progs[p].reps || '-';
-            if (progs[p].weight) weight = progs[p].weight;
-          }
-        }
-        h += '<tr><td>'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
-        h += '<td>'+reps[1]+'</td><td>'+reps[2]+'</td><td>'+reps[3]+'</td><td>'+reps[4]+'</td><td>'+weight+'</td></tr>';
-      }
-      h += '</tbody></table>';
-    }
-  }
-  h += '</body></html>';
-
-  var win = window.open('', '_blank');
-  win.document.write(h);
-  win.document.close();
-  win.focus();
-  setTimeout(function(){win.print();}, 500);
-}
-
-
-ld();
-
-document.getElementById('program-days').onclick=function(evt){
-  var td=evt.target;
-  if(td.classList.contains('editable-sets')||td.classList.contains('editable-tempo')||td.classList.contains('editable-rest')){
-    var field=td.classList.contains('editable-sets')?'sets':td.classList.contains('editable-tempo')?'tempo':'rest';
-    var cur=td.textContent==='-'?'':td.textContent;
-    var val=prompt('Enter '+field+':',cur);
-    if(val!==null){
-      var exId=td.getAttribute('data-exid');
-      var body={};body[field]=val||null;
-      fetch('/api/workout-exercises/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-        .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
-    }
-    return;
-  }
-  if(td.classList.contains('editable-reps')||td.classList.contains('editable-weight')){
-    var isReps=td.classList.contains('editable-reps');
-    var cur=td.textContent==='-'?'':td.textContent;
-    var val=prompt(isReps?'Enter reps:':'Enter weight:',cur);
-    if(val!==null){
-      var exId=td.getAttribute('data-exid');
-      var wk=parseInt(td.getAttribute('data-week'));
-      var body=isReps?{weeks:[{week:wk,reps:val}]}:{weeks:[{week:wk,weight:val}]};
-      fetch('/api/workout-progressions/'+exId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-        .then(function(){if(currentProgramId)renderProgramDays(currentProgramId);});
-    }
-    return;
-  }
-  var swap=td.closest('.ex-swap');
-  if(swap){openSwap(swap.getAttribute('data-exid'),swap.textContent.trim());}
-};
-</script>
-</body>
-</html>
+>
