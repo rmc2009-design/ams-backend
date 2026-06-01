@@ -180,7 +180,15 @@ tr:last-child td { border-bottom:none; }
             </div>
           </div>
           <div id="suggest-box"><div class="em">Loading suggestions...</div></div>
-          <button class="btn" onclick="createProgram()" style="margin-top:12px">Create Program</button>
+          <div style="margin-top:12px">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px">Override Warm-up</div>
+            <select id="override-wu" class="sel" style="margin-bottom:8px"><option value="">Use suggested</option></select>
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px">Override Block 1 (Mon/Fri)</div>
+            <select id="override-b1" class="sel" style="margin-bottom:8px"><option value="">Use suggested</option></select>
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px">Override Block 1 (Wed)</div>
+            <select id="override-wed" class="sel" style="margin-bottom:8px"><option value="">Use suggested</option></select>
+          </div>
+          <button class="btn" onclick="createProgram()" style="margin-top:4px">Create Program</button>
           <div id="np-result" class="mt"></div>
         </div>
       </div>
@@ -525,6 +533,20 @@ function showNewProgram(){
     }
     if(_wedBlock1Id){h+='<div style="font-size:11px;color:#64748b;margin-top:8px">Wednesday Block 1 auto-assigned (opposite track)</div>';}
     sb.innerHTML=h;
+    // Populate override dropdowns with all templates
+    fetch('/api/templates').then(function(r){return r.json();}).then(function(tpls){
+      var wuSel=document.getElementById('override-wu');
+      var b1Sel=document.getElementById('override-b1');
+      var wedSel=document.getElementById('override-wed');
+      wuSel.innerHTML='<option value="">Use suggested</option>';
+      b1Sel.innerHTML='<option value="">Use suggested</option>';
+      wedSel.innerHTML='<option value="">Use suggested</option>';
+      tpls.forEach(function(t){
+        var opt='<option value="'+t.id+'">'+t.name+'</option>';
+        if(t.template_type==='warmup') wuSel.innerHTML+=opt;
+        else if(t.template_type==='block'){b1Sel.innerHTML+=opt;wedSel.innerHTML+=opt;}
+      });
+    });
   });
 }
 
@@ -540,8 +562,10 @@ function createProgram(){
   var name=document.getElementById('np-name').value;
   if(!name){alert('Enter a program name.');return;}
   var weeks=parseInt(document.getElementById('np-weeks').value)||4;
-  var warmupId=_picks['wu']||null;
-  var block1Id=_picks['b1']||null;
+  var warmupId=document.getElementById('override-wu').value||_picks['wu']||null;
+  var block1Id=document.getElementById('override-b1').value||_picks['b1']||null;
+  var wedOverride=document.getElementById('override-wed').value||null;
+  if(wedOverride)_wedBlock1Id=wedOverride;
   var m=document.getElementById('np-result');
   m.style.display='block';m.className='mt';m.textContent='Creating program...';
   fetch('/api/programs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,weeks:weeks,phase:'Phase 1'})})
