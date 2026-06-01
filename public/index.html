@@ -195,9 +195,22 @@ tr:last-child td { border-bottom:none; }
       <div class="card" id="program-detail" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3 id="program-title" style="margin-bottom:0">Program</h3>
-          <select id="week-select" class="sel" style="margin-bottom:0" onchange="reloadWeek()">
-            <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
-          </select>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="week-select" class="sel" style="margin-bottom:0" onchange="reloadWeek()">
+              <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
+            </select>
+            <button onclick="showCopyProgram()" style="border:1px solid #e2e8f0;background:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Copy</button>
+          </div>
+        </div>
+        <div id="copy-form" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">Copy Program To:</div>
+          <div style="display:flex;gap:8px">
+            <select id="copy-athlete" class="sel" style="margin-bottom:0;flex:1"><option value="">Select athlete...</option></select>
+            <input type="text" id="copy-name" class="inp" placeholder="New program name (optional)" style="flex:2">
+            <button class="btn" onclick="doCopy()" style="white-space:nowrap">Copy</button>
+            <button onclick="document.getElementById('copy-form').style.display='none'" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:18px">×</button>
+          </div>
+          <div id="copy-result" class="mt"></div>
         </div>
         <div id="program-days"></div>
       </div>
@@ -835,6 +848,37 @@ function deleteTpl() {
       _currentTplId = null;
       loadTemplates();
     });
+}
+
+
+function showCopyProgram() {
+  var form = document.getElementById('copy-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  var sel = document.getElementById('copy-athlete');
+  sel.innerHTML = '<option value="">Select athlete...</option>';
+  for (var i = 0; i < allAthletes.length; i++) {
+    sel.innerHTML += '<option value="'+allAthletes[i].id+'">'+allAthletes[i].first_name+' '+allAthletes[i].last_name+'</option>';
+  }
+  document.getElementById('copy-name').value = '';
+  document.getElementById('copy-result').style.display = 'none';
+}
+
+function doCopy() {
+  if (!currentProgramId) return;
+  var athleteId = document.getElementById('copy-athlete').value;
+  if (!athleteId) { alert('Select an athlete to copy to.'); return; }
+  var name = document.getElementById('copy-name').value.trim() || null;
+  var m = document.getElementById('copy-result');
+  m.style.display = 'block'; m.className = 'mt'; m.textContent = 'Copying...';
+  fetch('/api/programs/'+currentProgramId+'/copy', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({athlete_id: athleteId, name: name})
+  }).then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { m.className = 'mt er'; m.textContent = 'Error: '+d.error; }
+      else { m.className = 'mt ok'; m.textContent = 'Program copied! Select the athlete in Workouts to view it.'; document.getElementById('copy-form').style.display='none'; }
+    }).catch(function(e){ m.className = 'mt er'; m.textContent = 'Failed: '+e.message; });
 }
 
 
