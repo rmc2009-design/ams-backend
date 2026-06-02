@@ -1319,17 +1319,62 @@ function buildWeeklyPrescription(vift, mapW) {
     { wk:20, phase:'Camp Taper',      color:'#fef3c7', session1:'ON-ICE: 30:15 × 8 reps × 2 sets @ '+spd(1.05)+' · 4 min set rest · RETEST VIFT', session2:'OFF-ICE: Recovery tempos · 10% below max NIRS · HR 65–78% · lower to 65% is better · HR should descend not plateau', notes:'Volume −35–40% vs peak. Intensity fully maintained. Arrive fresh.' },
   ];
 
-  var h = '<table style="font-size:10px;width:100%"><thead><tr style="background:#f1f5f9"><th style="width:28px;padding:4px">Wk</th><th style="width:90px;padding:4px">Phase</th><th style="padding:4px">Session A (Primary)</th><th style="padding:4px">Session B</th><th style="width:160px;padding:4px">Coach Notes</th></tr></thead><tbody>';
+  // Store default weeks globally for this athlete
+  window._condWeeks = weeks;
+
+  var h = '<div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">';
+  h += '<select id="proto-filter" class="sel" style="margin-bottom:0;font-size:11px" onchange="filterProtoDropdowns()">';
+  h += '<option value="">All protocols</option>';
+  h += '<option value="on_ice">On-Ice only</option>';
+  h += '<option value="assault_bike">Assault Bike only</option>';
+  h += '<option value="off_ice">Off-Ice only</option>';
+  h += '<option value="circuit">Circuit only</option>';
+  h += '</select>';
+  h += '<span style="font-size:11px;color:#64748b">Click a session cell to pick a protocol</span></div>';
+
+  h += '<div style="overflow-x:auto"><table style="font-size:10px;width:100%;min-width:700px"><thead><tr style="background:#f1f5f9">';
+  h += '<th style="width:28px;padding:4px">Wk</th>';
+  h += '<th style="width:80px;padding:4px">Phase</th>';
+  h += '<th style="padding:4px">Session A (Primary)</th>';
+  h += '<th style="padding:4px">Session B</th>';
+  h += '<th style="width:140px;padding:4px">Notes</th>';
+  h += '</tr></thead><tbody id="cond-week-tbody">';
+
   weeks.forEach(function(w) {
-    h += '<tr style="background:'+w.color+';border-bottom:1px solid #e2e8f0">';
+    h += '<tr style="background:'+w.color+';border-bottom:1px solid #e2e8f0" id="cond-wk-'+w.wk+'">';
     h += '<td style="font-weight:700;text-align:center;padding:4px 2px">'+w.wk+'</td>';
     h += '<td style="font-weight:600;font-size:9px;color:#374151;padding:4px 2px">'+w.phase+'</td>';
-    h += '<td style="padding:4px">'+w.session1+'</td>';
-    h += '<td style="padding:4px">'+w.session2+'</td>';
+    h += '<td style="padding:3px" id="cond-wk-'+w.wk+'-a">';
+    h += '<div style="font-size:10px;margin-bottom:3px" id="cond-wk-'+w.wk+'-a-text">'+w.session1+'</div>';
+    h += '<button onclick="openProtoModal('+w.wk+',\'a\')" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:2px 6px;border-radius:4px;cursor:pointer;color:#64748b">↻ swap</button>';
+    h += '</td>';
+    h += '<td style="padding:3px" id="cond-wk-'+w.wk+'-b">';
+    h += '<div style="font-size:10px;margin-bottom:3px" id="cond-wk-'+w.wk+'-b-text">'+w.session2+'</div>';
+    h += '<button onclick="openProtoModal('+w.wk+',\'b\')" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:2px 6px;border-radius:4px;cursor:pointer;color:#64748b">↻ swap</button>';
+    h += '</td>';
     h += '<td style="font-size:9px;color:#64748b;font-style:italic;padding:4px">'+w.notes+'</td>';
     h += '</tr>';
   });
-  h += '</tbody></table>';
+  h += '</tbody></table></div>';
+
+  // Protocol picker modal
+  h += '<div id="proto-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:500px;max-height:70vh;overflow-y:auto;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  h += '<h3 style="font-size:14px">Select Protocol</h3>';
+  h += '<button onclick="closeProtoModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">×</button>';
+  h += '</div>';
+  h += '<select id="proto-modal-filter" class="sel" style="margin-bottom:8px" onchange="renderProtoList()">';
+  h += '<option value="">All categories</option>';
+  h += '<option value="on_ice">On-Ice</option>';
+  h += '<option value="assault_bike">Assault Bike</option>';
+  h += '<option value="off_ice">Off-Ice</option>';
+  h += '<option value="circuit">Circuit</option>';
+  h += '</select>';
+  h += '<input type="text" id="proto-modal-search" class="inp" placeholder="Search protocols..." oninput="renderProtoList()" style="margin-bottom:8px">';
+  h += '<div id="proto-modal-list"><div class="em">Loading...</div></div>';
+  h += '</div>';
+  h += '<div id="proto-modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="closeProtoModal()"></div>';
+
   return h;
 }
 
@@ -1373,6 +1418,94 @@ function deleteCondTest(id) {
       loadAthleteCondHistory();
       loadConditioningSquad();
     });
+}
+
+
+// Protocol picker
+var _allProtocols = [];
+var _protoTarget = { wk: null, slot: null };
+
+function loadProtocols(cb) {
+  if (_allProtocols.length) { if(cb) cb(); return; }
+  fetch('/api/conditioning-protocols').then(function(r){return r.json();}).then(function(data){
+    _allProtocols = data;
+    if (cb) cb();
+  });
+}
+
+function openProtoModal(wk, slot) {
+  _protoTarget = { wk: wk, slot: slot };
+  document.getElementById('proto-modal').style.display = 'block';
+  document.getElementById('proto-modal-overlay').style.display = 'block';
+  document.getElementById('proto-modal-search').value = '';
+  document.getElementById('proto-modal-filter').value = '';
+  loadProtocols(renderProtoList);
+}
+
+function closeProtoModal() {
+  document.getElementById('proto-modal').style.display = 'none';
+  document.getElementById('proto-modal-overlay').style.display = 'none';
+}
+
+function renderProtoList() {
+  var search = document.getElementById('proto-modal-search').value.toLowerCase();
+  var cat = document.getElementById('proto-modal-filter').value;
+  var filtered = _allProtocols.filter(function(p) {
+    return (!cat || p.category === cat) && (!search || p.name.toLowerCase().includes(search) || (p.notes||'').toLowerCase().includes(search));
+  });
+  var catOrder = { on_ice: 0, off_ice: 1, assault_bike: 2, circuit: 3 };
+  filtered.sort(function(a,b){ return (catOrder[a.category]||0)-(catOrder[b.category]||0); });
+
+  var catLabels = { on_ice:'🏒 On-Ice', off_ice:'🚴 Off-Ice', assault_bike:'💥 Assault Bike', circuit:'⚡ Circuit' };
+  var el = document.getElementById('proto-modal-list');
+  if (!filtered.length) { el.innerHTML = '<div class="em">No protocols found.</div>'; return; }
+
+  var h = '';
+  var lastCat = '';
+  filtered.forEach(function(p) {
+    if (p.category !== lastCat) {
+      h += '<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;padding:6px 0 3px;border-top:1px solid #f1f5f9;margin-top:4px">'+(catLabels[p.category]||p.category)+'</div>';
+      lastCat = p.category;
+    }
+    h += '<div class="prog-item" style="padding:8px 10px;margin-bottom:4px" data-pid="'+p.id+'" onclick="selectProtocol(this.dataset.pid)">';
+    h += '<div style="font-weight:600;font-size:12px">'+p.name+'</div>';
+    if (p.format || p.intensity) h += '<div style="font-size:10px;color:#374151;margin-top:1px">'+(p.format||'')+' · '+(p.intensity||'')+'</div>';
+    if (p.volume) h += '<div style="font-size:10px;color:#64748b">'+p.volume+'</div>';
+    if (p.notes) h += '<div style="font-size:9px;color:#94a3b8;font-style:italic">'+p.notes+'</div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
+function selectProtocol(id) {
+  var name = '';
+  var wk = _protoTarget.wk;
+  var slot = _protoTarget.slot;
+  if (!wk || !slot) return;
+
+  // Build display text
+  var proto = null;
+  for (var i = 0; i < _allProtocols.length; i++) {
+    if (_allProtocols[i].id === id) { proto = _allProtocols[i]; break; }
+  }
+  if (!proto) return;
+  var text = proto.name;
+  if (proto) {
+    var parts = [];
+    if (proto.format) parts.push(proto.format);
+    if (proto.intensity) parts.push(proto.intensity);
+    if (proto.volume) parts.push(proto.volume);
+    if (parts.length) text += ' · ' + parts.join(' · ');
+  }
+
+  // Update the cell
+  var el = document.getElementById('cond-wk-'+wk+'-'+slot+'-text');
+  if (el) {
+    el.textContent = text;
+    el.style.fontWeight = '600';
+    el.style.color = '#1e40af';
+  }
+  closeProtoModal();
 }
 
 
