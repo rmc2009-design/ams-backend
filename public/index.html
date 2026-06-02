@@ -1721,55 +1721,80 @@ function loadCondProgWeeks(id) {
 }
 
 function renderCondWeeksTable(weeks) {
-  var h = '<table style="width:100%;font-size:11px;border-collapse:collapse">';
-  h += '<thead><tr style="background:#f1f5f9">';
-  h += '<th style="padding:5px;width:30px">Wk</th>';
-  h += '<th style="padding:5px;width:90px">Phase</th>';
-  h += '<th style="padding:5px">Session A (Primary)</th>';
-  h += '<th style="padding:5px">Session B</th>';
-  h += '<th style="padding:5px;width:100px">Notes</th>';
-  h += '</tr></thead><tbody>';
+  var el = document.getElementById('cp-weeks-table');
+  var tableEl = document.createElement('table');
+  tableEl.style.cssText = 'width:100%;font-size:11px;border-collapse:collapse';
+  tableEl.innerHTML = '<thead><tr style="background:#f1f5f9"><th style="padding:5px;width:30px">Wk</th><th style="padding:5px;width:90px">Phase</th><th style="padding:5px">Session A</th><th style="padding:5px">Session B</th><th style="padding:5px;width:100px">Notes</th></tr></thead><tbody></tbody>';
+  var tbody = tableEl.querySelector('tbody');
 
   weeks.forEach(function(w) {
     var aText = w.session_a_custom || (w.session_a ? w.session_a.name : '—');
     var bText = w.session_b_custom || (w.session_b ? w.session_b.name : '—');
-    var aDetail = w.session_a ? (w.session_a.format||'') + (w.session_a.volume?' · '+w.session_a.volume:'') : '';
-    var bDetail = w.session_b ? (w.session_b.format||'') + (w.session_b.volume?' · '+w.session_b.volume:'') : '';
+    var aDetail = w.session_a ? (w.session_a.format||'')+(w.session_a.volume?' · '+w.session_a.volume:'') : '';
+    var bDetail = w.session_b ? (w.session_b.format||'')+(w.session_b.volume?' · '+w.session_b.volume:'') : '';
+    var aColor = (w.session_a||w.session_a_custom) ? '#1e40af' : '#94a3b8';
+    var bColor = (w.session_b||w.session_b_custom) ? '#1e40af' : '#94a3b8';
 
-    h += '<tr style="border-bottom:1px solid #f1f5f9" id="cpw-'+w.id+'">';
-    h += '<td style="padding:4px;text-align:center;font-weight:700">'+w.week_number+'</td>';
+    var tr = document.createElement('tr');
+    tr.id = 'cpw-'+w.id;
+    tr.style.borderBottom = '1px solid #f1f5f9';
 
-    // Phase cell - editable
-    h += '<td style="padding:4px">';
-    h += 'onblur="saveCondWeekField(this.closest(\'tr\').id.replace(\'cpw-\',\'\'),\'phase\',this.value)">';
-    h += '</td>';
+    var tdWk = document.createElement('td');
+    tdWk.style.cssText = 'padding:4px;text-align:center;font-weight:700';
+    tdWk.textContent = w.week_number;
 
-    // Session A
-    h += '<td style="padding:4px">';
-    h += '<div style="font-weight:600;font-size:11px;color:'+(w.session_a||w.session_a_custom?'#1e40af':'#94a3b8')+'">'+aText+'</div>';
-    if (aDetail) h += '<div style="font-size:9px;color:#64748b">'+aDetail+'</div>';
-    h += '<div style="display:flex;gap:4px;margin-top:3px">';
-    h += '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">↻ protocol</button>';
-    h += '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">✎ custom</button>';
-    h += '</div></td>';
+    var tdPhase = document.createElement('td');
+    tdPhase.style.padding = '4px';
+    var phaseInput = document.createElement('input');
+    phaseInput.type = 'text';
+    phaseInput.value = w.phase || '';
+    phaseInput.placeholder = 'Phase...';
+    phaseInput.style.cssText = 'width:100%;border:1px solid #e2e8f0;border-radius:3px;padding:2px 4px;font-size:10px;color:#374151';
+    phaseInput.dataset.wid = w.id;
+    phaseInput.dataset.field = 'phase';
+    phaseInput.addEventListener('blur', function(){ saveCondWeekField(this.dataset.wid, this.dataset.field, this.value); });
+    tdPhase.appendChild(phaseInput);
 
-    // Session B
-    h += '<td style="padding:4px">';
-    h += '<div style="font-weight:600;font-size:11px;color:'+(w.session_b||w.session_b_custom?'#1e40af':'#94a3b8')+'">'+bText+'</div>';
-    if (bDetail) h += '<div style="font-size:9px;color:#64748b">'+bDetail+'</div>';
-    h += '<div style="display:flex;gap:4px;margin-top:3px">';
-    h += '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">↻ protocol</button>';
-    h += '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">✎ custom</button>';
-    h += '</div></td>';
+    var tdA = document.createElement('td');
+    tdA.style.padding = '4px';
+    tdA.innerHTML = '<div style="font-weight:600;font-size:11px;color:'+aColor+'" id="cpw-'+w.id+'-a-text">'+aText+'</div>'
+      + (aDetail ? '<div style="font-size:9px;color:#64748b">'+aDetail+'</div>' : '')
+      + '<div style="display:flex;gap:4px;margin-top:3px">'
+      + '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">&#8635; protocol</button>'
+      + '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">&#9998; custom</button>'
+      + '</div>';
 
-    // Notes
-    h += '<td style="padding:4px">';
-    h += 'onblur="saveCondWeekField(this.closest(\'tr\').id.replace(\'cpw-\',\'\'),\'notes\',this.value)">';
-    h += '</td>';
-    h += '</tr>';
+    var tdB = document.createElement('td');
+    tdB.style.padding = '4px';
+    tdB.innerHTML = '<div style="font-weight:600;font-size:11px;color:'+bColor+'" id="cpw-'+w.id+'-b-text">'+bText+'</div>'
+      + (bDetail ? '<div style="font-size:9px;color:#64748b">'+bDetail+'</div>' : '')
+      + '<div style="display:flex;gap:4px;margin-top:3px">'
+      + '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">&#8635; protocol</button>'
+      + '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">&#9998; custom</button>'
+      + '</div>';
+
+    var tdNotes = document.createElement('td');
+    tdNotes.style.padding = '4px';
+    var notesInput = document.createElement('input');
+    notesInput.type = 'text';
+    notesInput.value = w.notes || '';
+    notesInput.placeholder = 'Notes...';
+    notesInput.style.cssText = 'width:100%;border:1px solid #e2e8f0;border-radius:3px;padding:2px 4px;font-size:9px;color:#64748b';
+    notesInput.dataset.wid = w.id;
+    notesInput.dataset.field = 'notes';
+    notesInput.addEventListener('blur', function(){ saveCondWeekField(this.dataset.wid, this.dataset.field, this.value); });
+    tdNotes.appendChild(notesInput);
+
+    tr.appendChild(tdWk);
+    tr.appendChild(tdPhase);
+    tr.appendChild(tdA);
+    tr.appendChild(tdB);
+    tr.appendChild(tdNotes);
+    tbody.appendChild(tr);
   });
-  h += '</tbody></table>';
-  document.getElementById('cp-weeks-table').innerHTML = h;
+
+  el.innerHTML = '';
+  el.appendChild(tableEl);
 }
 
 function saveCondWeekField(weekId, field, value) {
