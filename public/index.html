@@ -1280,7 +1280,56 @@ function showAthleteZones(athleteId, name, vift, mapW, asr) {
     h += '</tbody></table>';
   }
 
+  // Week by week prescription
+  h += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:16px 0 8px">20-Week Prescription</div>';
+  h += buildWeeklyPrescription(vift, mapW);
+
   document.getElementById('cond-zones-content').innerHTML = h;
+}
+
+function buildWeeklyPrescription(vift, mapW) {
+  var weeks = [
+    // Off-ice build (Wks 1-4)
+    { wk:1, phase:'Off-Ice Base', tue:'Continuous bike/row — 20 min @ '+(vift?'Zone 1-2':'65–70% HRmax'), fri:'Continuous run/slideboard — 25 min @ '+(vift?'Zone 2':'70–73% HRmax'), notes:'Foundation — conversational pace only' },
+    { wk:2, phase:'Off-Ice Base', tue:'Continuous threshold — 30 min @ '+(vift?'Zone 2-3':'74–77% HRmax'), fri:'Long intervals — 3×8 min @ '+(vift?'Zone 3':'80–83% HRmax')+' · 2 min rest', notes:'Aerobic development' },
+    { wk:3, phase:'Off-Ice Build', tue:'30:30 × 10 reps × 2 sets @ '+(vift?(vift*0.90).toFixed(1)+'–'+(vift*0.93).toFixed(1)+' km/h':'90–93% HRmax')+' · 3 min rest', fri:'30:30 × 12 reps × 2 sets @ '+(vift?(vift*0.92).toFixed(1)+'–'+(vift*0.95).toFixed(1)+' km/h':'92–95% HRmax'), notes:'First 30:30 exposure' },
+    { wk:4, phase:'Off-Ice Bridge', tue:'30:30 × 14 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+'–'+(vift*1.00).toFixed(1)+' km/h':'95–100% HRmax')+' · peak off-ice', fri:'30:15 × 10 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+' km/h':'95% HRmax')+' · 15s rest', notes:'30:15 preview — run VIFT test start of Wk 5' },
+    // July (Wks 5-8)
+    { wk:5, phase:'July Wk 1', tue:'ON-ICE: 30:30 × 10 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+' km/h':'95% VIFT')+' · 4 min rest', fri:'OFF-ICE: 30:30 × 10 reps × 2 sets @ '+(mapW?Math.round(mapW*1.00)+'–'+Math.round(mapW*1.03)+'W':'100–103% MAP')+' · 3 min rest', notes:'TEST VIFT before session · set all zones from result' },
+    { wk:6, phase:'July Wk 2', tue:'ON-ICE: 30:30 × 12 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', fri:'OFF-ICE: 30:30 × 12 reps × 2 sets @ '+(mapW?Math.round(mapW*1.03)+'–'+Math.round(mapW*1.05)+'W':'103–105% MAP'), notes:'Volume increase — add 3rd set Fri if recovery good' },
+    { wk:7, phase:'July Wk 3', tue:'ON-ICE: Set 1: 10×30:30 @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · Set 2: 8×30:15 @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT'), fri:'OFF-ICE: 30:30 × 14 reps × 2 sets @ '+(mapW?Math.round(mapW*1.05)+'W':'105% MAP')+' · peak off-ice volume', notes:'30:15 introduced on-ice only' },
+    { wk:8, phase:'July Wk 4', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+'–'+(vift*1.03).toFixed(1)+' km/h':'100–103% VIFT')+' · 4–5 min rest', fri:'OFF-ICE: 30:30 × 10 reps × 2 sets @ '+(mapW?Math.round(mapW*0.93)+'W':'93% MAP')+' ONLY · reduced', notes:'RETEST VIFT · recalculate all zones before August' },
+    // August (Wks 9-13)
+    { wk:9, phase:'Aug Transition', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 8 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · body adapts to dual on-ice', notes:'Replace off-ice Fri with on-ice · add Wed easy bike 15–20 min @ Zone 1' },
+    { wk:10, phase:'Aug Wk 1', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Consolidation — Tue at 30:15 · Fri at 30:30' },
+    { wk:11, phase:'Aug Wk 2', tue:'ON-ICE: 30:15 × 12 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 12 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Volume step — both days increase' },
+    { wk:12, phase:'Aug Wk 3', tue:'ON-ICE: 30:15 × 12 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4–5 min rest', fri:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Both days now 30:15 · Fri always lower volume than Tue' },
+    { wk:13, phase:'Aug Wk 4 — Peak', tue:'ON-ICE: 30:15 × 12 reps × 3 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4–5 min rest', fri:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'TEST VIFT · peak pre-season load · 3rd set Tue if recovery consistent' },
+    // Taper (Wks 14-15)
+    { wk:14, phase:'Camp Taper', tue:'ON-ICE: 30:15 × 8 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:15 × 6 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4 min rest', notes:'Volume −35–40% · intensity maintained · arrive fresh' },
+    { wk:15, phase:'Training Camp', tue:'In-season maintenance protocol', fri:'In-season maintenance protocol', notes:'1–2 sessions/week · hold VIFT within 0.5 km/h of peak' },
+  ];
+
+  var phaseColors = {
+    'Off-Ice Base':'#f0fdf4','Off-Ice Build':'#f0fdf4','Off-Ice Bridge':'#f0fdf4',
+    'July Wk 1':'#eff6ff','July Wk 2':'#eff6ff','July Wk 3':'#eff6ff','July Wk 4':'#eff6ff',
+    'Aug Transition':'#fdf4ff','Aug Wk 1':'#fdf4ff','Aug Wk 2':'#fdf4ff','Aug Wk 3':'#fdf4ff','Aug Wk 4 — Peak':'#fdf4ff',
+    'Camp Taper':'#fef3c7','Training Camp':'#f1f5f9',
+  };
+
+  var h = '<table style="font-size:10px"><thead><tr><th style="width:30px">Wk</th><th style="width:80px">Phase</th><th>Tuesday</th><th>Friday</th><th>Notes</th></tr></thead><tbody>';
+  weeks.forEach(function(w) {
+    var bg = phaseColors[w.phase] || 'white';
+    h += '<tr style="background:'+bg+'">';
+    h += '<td style="font-weight:700;text-align:center">'+w.wk+'</td>';
+    h += '<td style="font-weight:600;font-size:9px;color:#64748b">'+w.phase+'</td>';
+    h += '<td>'+w.tue+'</td>';
+    h += '<td>'+w.fri+'</td>';
+    h += '<td style="font-size:9px;color:#64748b;font-style:italic">'+w.notes+'</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  return h;
 }
 
 function saveConditioningTest() {
