@@ -89,6 +89,7 @@ tr:last-child td { border-bottom:none; }
   <button onclick="sp('an',this)">Analysis</button>
   <button onclick="sp('as',this)">Assessments</button>
   <button onclick="sp('w',this)">Workouts</button>
+  <button onclick="sp('c',this)">Conditioning</button>
   <button onclick="sp('t',this)">Templates</button>
   <button onclick="sp('i',this)">Import</button>
 </div>
@@ -271,6 +272,67 @@ tr:last-child td { border-bottom:none; }
     </select>
     <div id="swap-list"><div class="em">Loading...</div></div>
   </div>
+  <div class="pg" id="pc">
+    <div class="two">
+      <div>
+        <div class="card">
+          <h3>Squad VIFT Overview</h3>
+          <div id="cond-squad"><div class="em">Loading...</div></div>
+        </div>
+        <div class="card" id="cond-athlete-card" style="display:none">
+          <h3 id="cond-athlete-name">Athlete History</h3>
+          <div id="cond-history"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Enter Test Result</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Athlete</label>
+              <select id="cond-athlete" class="sel" style="margin-bottom:0" onchange="loadAthleteCondHistory()"><option value="">Select athlete...</option></select>
+            </div>
+            <div class="form-group"><label>Test Date</label>
+              <input type="date" id="cond-date" class="inp">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Test # (1, 2, 3...)</label>
+              <input type="number" id="cond-testnum" class="inp" placeholder="e.g. 1">
+            </div>
+            <div class="form-group"><label>VIFT (km/h)</label>
+              <input type="number" id="cond-vift" class="inp" placeholder="e.g. 20.5" step="0.5" oninput="updateZonePreview()">
+            </div>
+          </div>
+          <div id="zone-preview" style="display:none;margin-bottom:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:8px">ON-ICE TRAINING ZONES</div>
+            <div id="zone-table"></div>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:12px 0 8px">Off-Ice Bike (Optional)</div>
+          <div class="form-row">
+            <div class="form-group"><label>MAP Watts (6-min test)</label>
+              <input type="number" id="cond-map" class="inp" placeholder="e.g. 380" oninput="updateBikePreview()">
+            </div>
+            <div class="form-group"><label>Peak Sprint Watts</label>
+              <input type="number" id="cond-peak" class="inp" placeholder="e.g. 720" oninput="updateBikePreview()">
+            </div>
+          </div>
+          <div id="bike-preview" style="display:none;margin-bottom:16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:#1e40af;margin-bottom:8px">BIKE ZONES (WATTS / RPM)</div>
+            <div id="bike-table"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px"><label>Notes</label>
+            <input type="text" id="cond-notes" class="inp" placeholder="Optional — conditions, fatigue state">
+          </div>
+          <button class="btn" onclick="saveConditioningTest()">Save Test Result</button>
+          <div id="cond-result" class="mt"></div>
+        </div>
+        <div class="card" id="cond-zones-card" style="display:none">
+          <h3 id="cond-zones-title">Training Zones</h3>
+          <div id="cond-zones-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="pg" id="pt">
     <div class="two">
       <div>
@@ -374,6 +436,7 @@ function sp(n,btn){
   if(n==='as'){fetchAthletes(function(){populateSel('as-athlete');document.getElementById('as-date').value=new Date().toISOString().split('T')[0];});}
   if(n==='w'){fetchAthletes(function(){populateSel('w-athlete');});}
   if(n==='t'){loadTemplates();}
+  if(n==='c'){loadConditioningSquad();}
 }
 
 function bx(t,c){return '<span class="b '+c+'">'+t+'</span>';}
@@ -1035,6 +1098,232 @@ function printProgram() {
   });
 }
 
+
+
+// ============================================================
+// CONDITIONING TOOL
+// ============================================================
+
+function calcViftZones(vift) {
+  return [
+    { name: 'Zone 1 — Recovery',      pct: '60–72%',  lo: vift*0.60, hi: vift*0.72, use: 'Warm-up, cool-down, active recovery' },
+    { name: 'Zone 2 — Aerobic Base',  pct: '72–82%',  lo: vift*0.72, hi: vift*0.82, use: 'Continuous skating, early pre-season' },
+    { name: 'Zone 3 — Threshold',     pct: '82–90%',  lo: vift*0.82, hi: vift*0.90, use: 'Lactate threshold development' },
+    { name: 'Zone 4 — Aerobic Power', pct: '90–100%', lo: vift*0.90, hi: vift*1.00, use: '30:30 intervals — primary zone' },
+    { name: 'Zone 5 — Supramaximal', pct: '100–120%', lo: vift*1.00, hi: vift*1.20, use: '10s bursts, PCr development, RSA' },
+  ];
+}
+
+function calcBikeZones(map, asr) {
+  // RPM estimated proportionally — MAP RPM ~65, adjusts with zone
+  var zones = [
+    { name: 'Recovery',      pctLo: 0.55, pctHi: 0.65, rpmAdj: -15 },
+    { name: 'Aerobic Base',  pctLo: 0.65, pctHi: 0.78, rpmAdj: -8  },
+    { name: 'Threshold',     pctLo: 0.78, pctHi: 0.88, rpmAdj: -3  },
+    { name: '30:30 Work',    pctLo: 1.00, pctHi: 1.08, rpmAdj: 8   },
+    { name: '30:15 Work',    pctLo: 1.00, pctHi: 1.05, rpmAdj: 5   },
+    { name: 'Supramaximal',  pctLo: null, pctHi: null,  rpmAdj: 30  },
+  ];
+  return zones.map(function(z) {
+    var wLo = z.pctLo ? Math.round(map * z.pctLo) : null;
+    var wHi = z.pctHi ? Math.round(map * z.pctHi) : null;
+    var wStr = z.name === 'Supramaximal' ? (asr ? Math.round(map + asr*0.2)+'W target' : 'MAP + 20% ASR') : (wLo+'-'+wHi+'W');
+    var rpm = 65 + z.rpmAdj;
+    var rpmStr = z.name === 'Supramaximal' ? 'Max effort' : (~rpm-5)+'-'+(rpm+5)+' RPM';
+    return { name: z.name, watts: wStr, rpm: rpmStr };
+  });
+}
+
+function updateZonePreview() {
+  var v = parseFloat(document.getElementById('cond-vift').value);
+  var preview = document.getElementById('zone-preview');
+  if (!v || v < 10 || v > 30) { preview.style.display='none'; return; }
+  preview.style.display='block';
+  var zones = calcViftZones(v);
+  var h = '<table><thead><tr><th>Zone</th><th>% VIFT</th><th>Speed (km/h)</th><th>Use</th></tr></thead><tbody>';
+  zones.forEach(function(z) {
+    h += '<tr><td style="font-weight:600">'+z.name+'</td><td>'+z.pct+'</td><td>'+z.lo.toFixed(1)+'–'+z.hi.toFixed(1)+'</td><td style="font-size:11px;color:#64748b">'+z.use+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('zone-table').innerHTML = h;
+}
+
+function updateBikePreview() {
+  var map = parseInt(document.getElementById('cond-map').value);
+  var peak = parseInt(document.getElementById('cond-peak').value);
+  var preview = document.getElementById('bike-preview');
+  if (!map || map < 100) { preview.style.display='none'; return; }
+  preview.style.display='block';
+  var asr = (peak && peak > map) ? peak - map : null;
+  var zones = calcBikeZones(map, asr);
+  var h = '';
+  if (asr) h += '<div style="font-size:12px;color:#374151;margin-bottom:8px">Bike ASR: <strong>'+asr+'W</strong> (Peak Sprint '+peak+'W − MAP '+map+'W)</div>';
+  h += '<table><thead><tr><th>Zone</th><th>Watts</th><th>RPM</th></tr></thead><tbody>';
+  zones.forEach(function(z) {
+    h += '<tr><td style="font-weight:600;font-size:11px">'+z.name+'</td><td>'+z.watts+'</td><td>'+z.rpm+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('bike-table').innerHTML = h;
+}
+
+function loadConditioningSquad() {
+  fetchAthletes(function(){populateSel('cond-athlete');});
+  document.getElementById('cond-date').value = new Date().toISOString().split('T')[0];
+  fetch('/api/conditioning/squad').then(function(r){return r.json();}).then(function(data){
+    var el = document.getElementById('cond-squad');
+    if (!data.length) { el.innerHTML='<div class="em">No test results yet.</div>'; return; }
+    var h = '<table><thead><tr><th>Athlete</th><th>Pos</th><th>VIFT</th><th>Test #</th><th>Date</th><th>Change</th><th>MAP</th><th>ASR</th><th>Status</th></tr></thead><tbody>';
+    data.forEach(function(a) {
+      var vift = a.latest_vift;
+      var delta = a.delta;
+      var deltaStr = delta === null ? '-' : (delta > 0 ? '<span style="color:#166534">▲'+delta+'</span>' : delta < 0 ? '<span style="color:#991b1b">▼'+Math.abs(delta)+'</span>' : '—');
+      var status = '-';
+      var statusColor = '#374151';
+      if (delta !== null) {
+        if (delta >= 0.5) { status='Improving'; statusColor='#166534'; }
+        else if (delta >= -0.5) { status='Maintaining'; statusColor='#374151'; }
+        else if (delta >= -1.0) { status='Mild decline'; statusColor='#92400e'; }
+        else if (delta >= -1.5) { status='Significant'; statusColor='#991b1b'; }
+        else { status='RED FLAG'; statusColor='#991b1b'; }
+      }
+      h += '<tr style="cursor:pointer" data-aid="'+a.athlete_id+'" data-name="'+a.name+'" data-vift="'+(vift||'')+'" data-map="'+(a.map_watts||'')+'" data-asr="'+(a.bike_asr||'')+'" onclick="showAthleteZonesFromRow(this)">';
+      h += '<td style="font-weight:600">'+a.name+'</td>';
+      h += '<td style="color:#64748b">'+(a.position||'-')+'</td>';
+      h += '<td><strong>'+(vift||'-')+'</strong></td>';
+      h += '<td>'+(a.test_number||'-')+'</td>';
+      h += '<td style="font-size:11px;color:#64748b">'+(a.latest_date||'-')+'</td>';
+      h += '<td>'+deltaStr+'</td>';
+      h += '<td>'+(a.map_watts||'-')+'</td>';
+      h += '<td>'+(a.bike_asr||'-')+'</td>';
+      h += '<td style="font-size:11px;font-weight:600;color:'+statusColor+'">'+status+'</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    el.innerHTML = h;
+  });
+}
+
+function loadAthleteCondHistory() {
+  var aid = document.getElementById('cond-athlete').value;
+  if (!aid) return;
+  fetch('/api/conditioning/'+aid).then(function(r){return r.json();}).then(function(tests){
+    var card = document.getElementById('cond-athlete-card');
+    if (!tests.length) { card.style.display='none'; return; }
+    card.style.display='block';
+    // Get athlete name
+    var nm = '';
+    for (var i=0;i<allAthletes.length;i++){if(allAthletes[i].id===aid){nm=allAthletes[i].first_name+' '+allAthletes[i].last_name;break;}}
+    document.getElementById('cond-athlete-name').textContent = nm+' — Test History';
+    var h = '<table><thead><tr><th>Test #</th><th>Date</th><th>VIFT</th><th>MAP</th><th>ASR</th><th>Notes</th><th></th></tr></thead><tbody>';
+    tests.forEach(function(t) {
+      h += '<tr>';
+      h += '<td>'+(t.test_number||'-')+'</td>';
+      h += '<td style="font-size:11px">'+t.test_date+'</td>';
+      h += '<td><strong>'+(t.vift||'-')+'</strong></td>';
+      h += '<td>'+(t.map_watts||'-')+'</td>';
+      h += '<td>'+(t.bike_asr||'-')+'</td>';
+      h += '<td style="font-size:11px;color:#64748b">'+(t.notes||'')+'</td>';
+      h += '<td><button data-cid="'+t.id+'" onclick="deleteCondTest(this.getAttribute(\\"data-cid\\"))" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:14px">×</button></td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    document.getElementById('cond-history').innerHTML = h;
+  });
+}
+
+function showAthleteZonesFromRow(row) {
+  showAthleteZones(
+    row.getAttribute('data-aid'),
+    row.getAttribute('data-name'),
+    parseFloat(row.getAttribute('data-vift'))||null,
+    parseInt(row.getAttribute('data-map'))||null,
+    parseInt(row.getAttribute('data-asr'))||null
+  );
+}
+
+function showAthleteZones(athleteId, name, vift, mapW, asr) {
+  var card = document.getElementById('cond-zones-card');
+  card.style.display='block';
+  document.getElementById('cond-zones-title').textContent = name+' — Zones (VIFT '+vift+' km/h)';
+  var h = '';
+
+  // On-ice zones
+  if (vift) {
+    var zones = calcViftZones(vift);
+    h += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">On-Ice Zones</div>';
+    h += '<table style="margin-bottom:16px"><thead><tr><th>Zone</th><th>% VIFT</th><th>km/h</th><th>Primary Use</th></tr></thead><tbody>';
+    zones.forEach(function(z) {
+      h += '<tr><td style="font-weight:600">'+z.name+'</td><td>'+z.pct+'</td><td><strong>'+z.lo.toFixed(1)+'–'+z.hi.toFixed(1)+'</strong></td><td style="font-size:11px;color:#64748b">'+z.use+'</td></tr>';
+    });
+    h += '</tbody></table>';
+
+    // Session prescriptions
+    h += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Session Prescriptions</div>';
+    h += '<table style="margin-bottom:16px"><thead><tr><th>Session</th><th>Format</th><th>Speed</th><th>Volume</th></tr></thead><tbody>';
+    h += '<tr><td style="font-weight:600">Tue 30:30</td><td>30s work / 30s rest</td><td>'+(vift*1.00).toFixed(1)+'–'+(vift*1.00).toFixed(1)+' km/h</td><td>10–12 reps × 2 sets · 4 min rest</td></tr>';
+    h += '<tr><td style="font-weight:600">Tue 30:15</td><td>30s work / 15s rest</td><td>'+(vift*1.00).toFixed(1)+'–'+(vift*1.05).toFixed(1)+' km/h</td><td>10–12 reps × 2 sets · 4–5 min rest</td></tr>';
+    h += '<tr><td style="font-weight:600">Fri 30:30</td><td>30s work / 30s rest</td><td>'+(vift*1.00).toFixed(1)+' km/h</td><td>8–10 reps × 2 sets · 4 min rest</td></tr>';
+    h += '<tr><td style="font-weight:600">Fri 30:15</td><td>30s work / 15s rest</td><td>'+(vift*1.00).toFixed(1)+' km/h</td><td>10 reps × 2 sets · 4 min rest</td></tr>';
+    h += '<tr><td style="font-weight:600">Mon Supramax</td><td>10s work / 50s rest</td><td>'+(vift*1.10).toFixed(1)+'–'+(vift*1.20).toFixed(1)+' km/h</td><td>8–10 reps × 1 set · full rest only</td></tr>';
+    h += '</tbody></table>';
+  }
+
+  // Bike zones
+  if (mapW) {
+    var bikeZones = calcBikeZones(mapW, asr);
+    h += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Bike Zones</div>';
+    if (asr) h += '<div style="font-size:12px;color:#374151;margin-bottom:8px">Bike ASR: <strong>'+asr+'W</strong></div>';
+    h += '<table><thead><tr><th>Zone</th><th>Watts</th><th>RPM</th></tr></thead><tbody>';
+    bikeZones.forEach(function(z) {
+      h += '<tr><td style="font-weight:600">'+z.name+'</td><td>'+z.watts+'</td><td>'+z.rpm+'</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+
+  document.getElementById('cond-zones-content').innerHTML = h;
+}
+
+function saveConditioningTest() {
+  var aid = document.getElementById('cond-athlete').value;
+  if (!aid) { alert('Select an athlete.'); return; }
+  var vift = parseFloat(document.getElementById('cond-vift').value)||null;
+  var map = parseInt(document.getElementById('cond-map').value)||null;
+  var peak = parseInt(document.getElementById('cond-peak').value)||null;
+  var payload = {
+    athlete_id: aid,
+    test_date: document.getElementById('cond-date').value,
+    test_number: parseInt(document.getElementById('cond-testnum').value)||null,
+    vift: vift,
+    map_watts: map,
+    peak_sprint_watts: peak,
+    notes: document.getElementById('cond-notes').value||null,
+  };
+  var m = document.getElementById('cond-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  fetch('/api/conditioning', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+      else {
+        m.className='mt ok'; m.textContent='Test saved!';
+        loadConditioningSquad();
+        loadAthleteCondHistory();
+        // Show zones
+        var nm='';
+        for(var i=0;i<allAthletes.length;i++){if(allAthletes[i].id===aid){nm=allAthletes[i].first_name+' '+allAthletes[i].last_name;break;}}
+        if (vift) showAthleteZones(aid, nm, vift, map, map&&peak?peak-map:null);
+      }
+    }).catch(function(e){m.className='mt er';m.textContent='Failed: '+e.message;});
+}
+
+function deleteCondTest(id) {
+  if (!confirm('Delete this test result?')) return;
+  fetch('/api/conditioning/'+id, {method:'DELETE'})
+    .then(function(){
+      loadAthleteCondHistory();
+      loadConditioningSquad();
+    });
+}
 
 
 ld();
