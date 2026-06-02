@@ -770,6 +770,148 @@ app.delete('/api/conditioning-protocols/:id', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ============================================================
+// CONDITIONING PROGRAMS
+// ============================================================
+
+app.get('/api/conditioning-programs', async function(req, res) {
+  try {
+    var q = supabase.from('conditioning_programs').select('*').order('created_at', { ascending: false });
+    if (req.query.template === 'true') q = q.eq('is_template', true);
+    if (req.query.athlete_id) {
+      var ap = await supabase.from('athlete_conditioning_programs')
+        .select('program_id').eq('athlete_id', req.query.athlete_id).eq('active', true);
+      if (ap.error) throw ap.error;
+      var ids = ap.data.map(function(r){ return r.program_id; });
+      if (!ids.length) { res.json([]); return; }
+      q = q.in('id', ids);
+    }
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conditioning-programs', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('conditioning_programs').insert({
+      name: b.name,
+      weeks: b.weeks || 4,
+      mode: b.mode || 'assault_bike',
+      is_template: b.is_template || false,
+      notes: b.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    var prog = r.data[0];
+
+    // Auto-create week slots
+    var weekRows = [];
+    for (var w = 1; w <= prog.weeks; w++) {
+      weekRows.push({ program_id: prog.id, week_number: w, phase: null });
+    }
+    await supabase.from('conditioning_program_weeks').insert(weekRows);
+
+    res.json(prog);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/conditioning-programs/:id/weeks', async function(req, res) {
+  try {
+    var r = await supabase.from('conditioning_program_weeks')
+      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
+      .eq('program_id', req.params.id)
+      .order('week_number');
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/conditioning-program-weeks/:id', async function(req, res) {
+  try {
+    var b = req.body;
+    var updates = {};
+    if (b.phase !== undefined) updates.phase = b.phase;
+    if (b.session_a_protocol_id !== undefined) updates.session_a_protocol_id = b.session_a_protocol_id;
+    if (b.session_a_custom !== undefined) updates.session_a_custom = b.session_a_custom;
+    if (b.session_b_protocol_id !== undefined) updates.session_b_protocol_id = b.session_b_protocol_id;
+    if (b.session_b_custom !== undefined) updates.session_b_custom = b.session_b_custom;
+    if (b.notes !== undefined) updates.notes = b.notes;
+    var r = await supabase.from('conditioning_program_weeks').update(updates).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conditioning-programs/:id/assign', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_conditioning_programs').upsert({
+      athlete_id: req.body.athlete_id,
+      program_id: req.params.id,
+      active: true,
+    }, { onConflict: 'athlete_id,program_id' });
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conditioning-programs/:id/copy', async function(req, res) {
+  try {
+    var srcId = req.params.id;
+    var srcR = await supabase.from('conditioning_programs').select('*').eq('id', srcId).single();
+    if (srcR.error) throw srcR.error;
+    var src = srcR.data;
+
+    var newR = await supabase.from('conditioning_programs').insert({
+      name: req.body.name || src.name + ' (copy)',
+      weeks: src.weeks, mode: src.mode,
+      is_template: req.body.as_template || false,
+      notes: src.notes,
+    }).select();
+    if (newR.error) throw newR.error;
+    var newProg = newR.data[0];
+
+    // Copy weeks
+    var weeksR = await supabase.from('conditioning_program_weeks').select('*').eq('program_id', srcId).order('week_number');
+    if (weeksR.error) throw weeksR.error;
+    var newWeeks = weeksR.data.map(function(w) {
+      return {
+        program_id: newProg.id,
+        week_number: w.week_number,
+        phase: w.phase,
+        session_a_protocol_id: w.session_a_protocol_id,
+        session_a_custom: w.session_a_custom,
+        session_b_protocol_id: w.session_b_protocol_id,
+        session_b_custom: w.session_b_custom,
+        notes: w.notes,
+      };
+    });
+    if (newWeeks.length) await supabase.from('conditioning_program_weeks').insert(newWeeks);
+
+    // Assign to athlete if provided
+    if (req.body.athlete_id) {
+      await supabase.from('athlete_conditioning_programs').upsert({
+        athlete_id: req.body.athlete_id,
+        program_id: newProg.id,
+        active: true,
+      }, { onConflict: 'athlete_id,program_id' });
+    }
+
+    res.json(newProg);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/conditioning-programs/:id', async function(req, res) {
+  try {
+    await supabase.from('conditioning_program_weeks').delete().eq('program_id', req.params.id);
+    await supabase.from('athlete_conditioning_programs').delete().eq('program_id', req.params.id);
+    var r = await supabase.from('conditioning_programs').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
