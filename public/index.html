@@ -90,6 +90,7 @@ tr:last-child td { border-bottom:none; }
   <button onclick="sp('as',this)">Assessments</button>
   <button onclick="sp('w',this)">Workouts</button>
   <button onclick="sp('c',this)">Conditioning</button>
+  <button onclick="sp('cp',this)">Cond. Programs</button>
   <button onclick="sp('t',this)">Templates</button>
   <button onclick="sp('i',this)">Import</button>
 </div>
@@ -333,6 +334,95 @@ tr:last-child td { border-bottom:none; }
       </div>
     </div>
   </div>
+  <div class="pg" id="pcp">
+    <div class="two">
+      <div>
+        <div class="card">
+          <h3>Conditioning Programs</h3>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <select id="cp-athlete" class="sel" style="margin-bottom:0;flex:1" onchange="loadCondPrograms()"><option value="">All programs</option></select>
+            <button class="btn" onclick="showNewCondProgram()">+ New Program</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" id="cp-templates-only" onchange="loadCondPrograms()"> Templates only
+            </label>
+          </div>
+          <div id="cp-list"><div class="em">Loading...</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="card" id="cp-new-form" style="display:none">
+          <h3>New Conditioning Program</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Program Name</label><input type="text" id="cp-name" class="inp" placeholder="e.g. 20-Week Assault Bike Pre-Season"></div>
+            <div class="form-group"><label>Weeks</label>
+              <select id="cp-weeks" class="sel" style="margin-bottom:0">
+                <option value="4">4 weeks</option>
+                <option value="6">6 weeks</option>
+                <option value="8">8 weeks</option>
+                <option value="12">12 weeks</option>
+                <option value="16">16 weeks</option>
+                <option value="20" selected>20 weeks</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Mode</label>
+              <select id="cp-mode" class="sel" style="margin-bottom:0">
+                <option value="assault_bike">Assault Bike</option>
+                <option value="watt_bike">Watt Bike</option>
+                <option value="ski_erg">Ski Erg</option>
+                <option value="running">Running</option>
+                <option value="slideboard">Slideboard</option>
+                <option value="on_ice">On-Ice</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Assign to Athlete (optional)</label>
+              <select id="cp-assign-athlete" class="sel" style="margin-bottom:0"><option value="">No assignment</option></select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="cp-is-template"> Save as template (reusable)
+            </label>
+          </div>
+          <div class="form-group" style="margin-bottom:12px"><label>Notes</label><input type="text" id="cp-notes" class="inp" placeholder="Optional"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="createCondProgram()">Create Program</button>
+            <button onclick="document.getElementById('cp-new-form').style.display='none'" style="border:1px solid #e2e8f0;background:white;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px">Cancel</button>
+          </div>
+          <div id="cp-create-result" class="mt"></div>
+        </div>
+        <div class="card" id="cp-detail" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 id="cp-detail-title" style="margin-bottom:0"></h3>
+            <div style="display:flex;gap:6px">
+              <button id="cp-mode-badge" style="border:1px solid #e2e8f0;background:#f8fafc;padding:4px 10px;border-radius:20px;font-size:11px;cursor:default"></button>
+              <button onclick="showCopyCondProgram()" style="border:1px solid #e2e8f0;background:white;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">Copy</button>
+              <button onclick="deleteCondProgram()" style="border:none;background:#fee2e2;color:#991b1b;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">Delete</button>
+            </div>
+          </div>
+          <div id="cp-copy-form" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">Copy Program</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input type="text" id="cp-copy-name" class="inp" placeholder="New name" style="flex:2;min-width:150px">
+              <select id="cp-copy-athlete" class="sel" style="margin-bottom:0;flex:1;min-width:120px"><option value="">Assign to athlete...</option></select>
+              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="cp-copy-as-template"> As template</label>
+              <button class="btn" onclick="doCopyCondProgram()" style="white-space:nowrap">Copy</button>
+            </div>
+            <div id="cp-copy-result" class="mt"></div>
+          </div>
+          <div id="cp-assign-form" style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+            <select id="cp-detail-athlete" class="sel" style="margin-bottom:0;flex:1"><option value="">Assign to athlete...</option></select>
+            <button onclick="assignCondProgram()" class="btn" style="padding:7px 14px;font-size:12px">Assign</button>
+          </div>
+          <div id="cp-weeks-table"><div class="em">Loading weeks...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="pg" id="pt">
     <div class="two">
       <div>
@@ -437,6 +527,7 @@ function sp(n,btn){
   if(n==='w'){fetchAthletes(function(){populateSel('w-athlete');});}
   if(n==='t'){loadTemplates();}
   if(n==='c'){loadConditioningSquad();}
+  if(n==='cp'){loadCondPrograms();}
 }
 
 function bx(t,c){return '<span class="b '+c+'">'+t+'</span>';}
@@ -1506,6 +1597,276 @@ function selectProtocol(id) {
     el.style.color = '#1e40af';
   }
   closeProtoModal();
+}
+
+
+// ============================================================
+// CONDITIONING PROGRAMS
+// ============================================================
+var _currentCondProgId = null;
+var _currentCondProgMode = 'assault_bike';
+var _condWeekTarget = null;
+
+var modeLabels = {
+  assault_bike:'Assault Bike', watt_bike:'Watt Bike', ski_erg:'Ski Erg',
+  running:'Running', slideboard:'Slideboard', on_ice:'On-Ice', mixed:'Mixed'
+};
+var modeColors = {
+  assault_bike:'#fff7ed', watt_bike:'#eff6ff', ski_erg:'#f0fdf4',
+  running:'#fdf4ff', slideboard:'#fef3c7', on_ice:'#dbeafe', mixed:'#f1f5f9'
+};
+
+function loadCondPrograms() {
+  fetchAthletes(function(){
+    populateSel('cp-athlete');
+    populateSel('cp-assign-athlete');
+    populateSel('cp-detail-athlete');
+    populateSel('cp-copy-athlete');
+  });
+  var aid = document.getElementById('cp-athlete') ? document.getElementById('cp-athlete').value : '';
+  var templatesOnly = document.getElementById('cp-templates-only') ? document.getElementById('cp-templates-only').checked : false;
+  var url = '/api/conditioning-programs?';
+  if (aid) url += 'athlete_id='+aid+'&';
+  if (templatesOnly) url += 'template=true&';
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    var el = document.getElementById('cp-list');
+    if (!data.length) { el.innerHTML='<div class="em">No programs yet. Create one or start from a template.</div>'; return; }
+    var h = '';
+    data.forEach(function(p) {
+      var bg = modeColors[p.mode] || '#f8fafc';
+      h += '<div class="prog-item" style="border-left:3px solid #2563eb;background:'+bg+'" data-pid="'+p.id+'" data-pname="'+p.name.replace(/"/g,'')+'" onclick="loadCondProgDetail(this.dataset.pid,this.dataset.pname)">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      h += '<div style="font-weight:600;font-size:13px">'+p.name+'</div>';
+      h += '<div style="font-size:10px;color:#64748b">'+p.weeks+' wks</div>';
+      h += '</div>';
+      h += '<div style="font-size:11px;color:#64748b;margin-top:2px">'+(modeLabels[p.mode]||p.mode)+(p.is_template?' · <span style="color:#2563eb;font-weight:600">TEMPLATE</span>':'')+'</div>';
+      h += '</div>';
+    });
+    el.innerHTML = h;
+  });
+}
+
+function showNewCondProgram() {
+  document.getElementById('cp-new-form').style.display = 'block';
+  document.getElementById('cp-detail').style.display = 'none';
+  document.getElementById('cp-name').value = '';
+  document.getElementById('cp-notes').value = '';
+  document.getElementById('cp-create-result').style.display = 'none';
+  fetchAthletes(function(){ populateSel('cp-assign-athlete'); });
+}
+
+function createCondProgram() {
+  var name = document.getElementById('cp-name').value.trim();
+  if (!name) { alert('Enter a program name.'); return; }
+  var payload = {
+    name: name,
+    weeks: parseInt(document.getElementById('cp-weeks').value),
+    mode: document.getElementById('cp-mode').value,
+    is_template: document.getElementById('cp-is-template').checked,
+    notes: document.getElementById('cp-notes').value || null,
+  };
+  var m = document.getElementById('cp-create-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Creating...';
+  fetch('/api/conditioning-programs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(prog){
+      if (prog.error) { m.className='mt er'; m.textContent='Error: '+prog.error; return; }
+      var assignAid = document.getElementById('cp-assign-athlete').value;
+      if (assignAid) {
+        return fetch('/api/conditioning-programs/'+prog.id+'/assign', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({athlete_id: assignAid})
+        }).then(function(){
+          m.className='mt ok'; m.textContent='Program created and assigned!';
+          loadCondPrograms();
+          loadCondProgDetail(prog.id, prog.name);
+        });
+      } else {
+        m.className='mt ok'; m.textContent='Program created!';
+        loadCondPrograms();
+        loadCondProgDetail(prog.id, prog.name);
+      }
+    }).catch(function(e){ m.className='mt er'; m.textContent='Failed: '+e.message; });
+}
+
+function loadCondProgDetail(id, name) {
+  _currentCondProgId = id;
+  document.getElementById('cp-new-form').style.display = 'none';
+  document.getElementById('cp-detail').style.display = 'block';
+  document.getElementById('cp-detail-title').textContent = name;
+  document.getElementById('cp-copy-form').style.display = 'none';
+  fetchAthletes(function(){
+    populateSel('cp-detail-athlete');
+    populateSel('cp-copy-athlete');
+  });
+  // Get program details for mode badge
+  fetch('/api/conditioning-programs?').then(function(r){return r.json();}).then(function(progs){
+    var prog = progs.find(function(p){ return p.id === id; });
+    if (prog) {
+      _currentCondProgMode = prog.mode;
+      var badge = document.getElementById('cp-mode-badge');
+      badge.textContent = (modeLabels[prog.mode]||prog.mode) + ' · ' + prog.weeks + ' weeks' + (prog.is_template?' · TEMPLATE':'');
+      badge.style.background = modeColors[prog.mode] || '#f8fafc';
+    }
+  });
+  loadCondProgWeeks(id);
+}
+
+function loadCondProgWeeks(id) {
+  loadProtocols(function(){
+    fetch('/api/conditioning-programs/'+id+'/weeks').then(function(r){return r.json();}).then(function(weeks){
+      renderCondWeeksTable(weeks);
+    });
+  });
+}
+
+function renderCondWeeksTable(weeks) {
+  var h = '<table style="width:100%;font-size:11px;border-collapse:collapse">';
+  h += '<thead><tr style="background:#f1f5f9">';
+  h += '<th style="padding:5px;width:30px">Wk</th>';
+  h += '<th style="padding:5px;width:90px">Phase</th>';
+  h += '<th style="padding:5px">Session A (Primary)</th>';
+  h += '<th style="padding:5px">Session B</th>';
+  h += '<th style="padding:5px;width:100px">Notes</th>';
+  h += '</tr></thead><tbody>';
+
+  weeks.forEach(function(w) {
+    var aText = w.session_a_custom || (w.session_a ? w.session_a.name : '—');
+    var bText = w.session_b_custom || (w.session_b ? w.session_b.name : '—');
+    var aDetail = w.session_a ? (w.session_a.format||'') + (w.session_a.volume?' · '+w.session_a.volume:'') : '';
+    var bDetail = w.session_b ? (w.session_b.format||'') + (w.session_b.volume?' · '+w.session_b.volume:'') : '';
+
+    h += '<tr style="border-bottom:1px solid #f1f5f9" id="cpw-'+w.id+'">';
+    h += '<td style="padding:4px;text-align:center;font-weight:700">'+w.week_number+'</td>';
+
+    // Phase cell - editable
+    h += '<td style="padding:4px">';
+    h += 'onblur="saveCondWeekField(this.closest(\'tr\').id.replace(\'cpw-\',\'\'),\'phase\',this.value)">';
+    h += '</td>';
+
+    // Session A
+    h += '<td style="padding:4px">';
+    h += '<div style="font-weight:600;font-size:11px;color:'+(w.session_a||w.session_a_custom?'#1e40af':'#94a3b8')+'">'+aText+'</div>';
+    if (aDetail) h += '<div style="font-size:9px;color:#64748b">'+aDetail+'</div>';
+    h += '<div style="display:flex;gap:4px;margin-top:3px">';
+    h += '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">↻ protocol</button>';
+    h += '<button data-wid="'+w.id+'" data-slot="a" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">✎ custom</button>';
+    h += '</div></td>';
+
+    // Session B
+    h += '<td style="padding:4px">';
+    h += '<div style="font-weight:600;font-size:11px;color:'+(w.session_b||w.session_b_custom?'#1e40af':'#94a3b8')+'">'+bText+'</div>';
+    if (bDetail) h += '<div style="font-size:9px;color:#64748b">'+bDetail+'</div>';
+    h += '<div style="display:flex;gap:4px;margin-top:3px">';
+    h += '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondProtoModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">↻ protocol</button>';
+    h += '<button data-wid="'+w.id+'" data-slot="b" onclick="openCondCustomModal(this.dataset.wid,this.dataset.slot)" style="font-size:9px;border:1px dashed #94a3b8;background:none;padding:1px 5px;border-radius:3px;cursor:pointer;color:#64748b">✎ custom</button>';
+    h += '</div></td>';
+
+    // Notes
+    h += '<td style="padding:4px">';
+    h += 'onblur="saveCondWeekField(this.closest(\'tr\').id.replace(\'cpw-\',\'\'),\'notes\',this.value)">';
+    h += '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('cp-weeks-table').innerHTML = h;
+}
+
+function saveCondWeekField(weekId, field, value) {
+  var body = {};
+  body[field] = value || null;
+  fetch('/api/conditioning-program-weeks/'+weekId, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+}
+
+function openCondProtoModal(weekId, slot) {
+  _condWeekTarget = { weekId: weekId, slot: slot, type: 'protocol' };
+  document.getElementById('proto-modal').style.display = 'block';
+  document.getElementById('proto-modal-overlay').style.display = 'block';
+  document.getElementById('proto-modal-search').value = '';
+  // Pre-filter by mode
+  var modeMap = { assault_bike:'assault_bike', watt_bike:'off_ice', ski_erg:'off_ice', running:'off_ice', on_ice:'on_ice', mixed:'' };
+  document.getElementById('proto-modal-filter').value = modeMap[_currentCondProgMode] || '';
+  loadProtocols(renderProtoList);
+}
+
+function openCondCustomModal(weekId, slot) {
+  var currentText = '';
+  _condWeekTarget = { weekId: weekId, slot: slot, type: 'custom' };
+  var val = prompt('Enter custom session description:', currentText === '—' ? '' : currentText);
+  if (val !== null) {
+    var field = 'session_'+slot+'_custom';
+    var body = {};
+    body[field] = val || null;
+    // Clear protocol if setting custom
+    body['session_'+slot+'_protocol_id'] = null;
+    fetch('/api/conditioning-program-weeks/'+weekId, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(){ loadCondProgWeeks(_currentCondProgId); });
+  }
+}
+
+// Override selectProtocol to handle conditioning program weeks too
+var _origSelectProtocol = selectProtocol;
+selectProtocol = function(id) {
+  if (_condWeekTarget && _condWeekTarget.type === 'protocol') {
+    var slot = _condWeekTarget.slot;
+    var weekId = _condWeekTarget.weekId;
+    var body = {};
+    body['session_'+slot+'_protocol_id'] = id;
+    body['session_'+slot+'_custom'] = null;
+    fetch('/api/conditioning-program-weeks/'+weekId, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(){
+      closeProtoModal();
+      _condWeekTarget = null;
+      loadCondProgWeeks(_currentCondProgId);
+    });
+  } else {
+    _origSelectProtocol(id);
+  }
+};
+
+function assignCondProgram() {
+  var aid = document.getElementById('cp-detail-athlete').value;
+  if (!aid || !_currentCondProgId) { alert('Select an athlete.'); return; }
+  fetch('/api/conditioning-programs/'+_currentCondProgId+'/assign', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({athlete_id: aid})
+  }).then(function(r){return r.json();}).then(function(){
+    alert('Program assigned!');
+  });
+}
+
+function showCopyCondProgram() {
+  var form = document.getElementById('cp-copy-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('cp-copy-name').value = '';
+  fetchAthletes(function(){ populateSel('cp-copy-athlete'); });
+}
+
+function doCopyCondProgram() {
+  if (!_currentCondProgId) return;
+  var name = document.getElementById('cp-copy-name').value.trim() || null;
+  var aid = document.getElementById('cp-copy-athlete').value || null;
+  var asTemplate = document.getElementById('cp-copy-as-template').checked;
+  var m = document.getElementById('cp-copy-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Copying...';
+  fetch('/api/conditioning-programs/'+_currentCondProgId+'/copy', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name, athlete_id:aid, as_template:asTemplate})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+    else { m.className='mt ok'; m.textContent='Copied!'; loadCondPrograms(); document.getElementById('cp-copy-form').style.display='none'; }
+  });
+}
+
+function deleteCondProgram() {
+  if (!_currentCondProgId) return;
+  if (!confirm('Delete this conditioning program? This cannot be undone.')) return;
+  fetch('/api/conditioning-programs/'+_currentCondProgId, {method:'DELETE'})
+    .then(function(){ document.getElementById('cp-detail').style.display='none'; _currentCondProgId=null; loadCondPrograms(); });
 }
 
 
