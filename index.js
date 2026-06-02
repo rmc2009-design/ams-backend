@@ -739,6 +739,37 @@ app.delete('/api/conditioning/:id', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.get('/api/conditioning-protocols', async function(req, res) {
+  try {
+    var r = await supabase.from('conditioning_protocols')
+      .select('*').order('category').order('name');
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conditioning-protocols', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('conditioning_protocols').insert({
+      name: b.name, category: b.category,
+      format: b.format||null, intensity: b.intensity||null,
+      volume: b.volume||null, notes: b.notes||null,
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/conditioning-protocols/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('conditioning_protocols').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
