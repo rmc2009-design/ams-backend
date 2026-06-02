@@ -654,6 +654,91 @@ app.get('/api/programs/:id/print', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ============================================================
+// CONDITIONING ROUTES
+// ============================================================
+
+app.get('/api/conditioning/squad', async function(req, res) {
+  try {
+    // Get latest test per athlete
+    var r = await supabase.from('conditioning_tests')
+      .select('*, athletes(first_name, last_name, position)')
+      .order('test_date', { ascending: false });
+    if (r.error) throw r.error;
+
+    // Group by athlete, keep latest + all tests for trend
+    var athleteMap = {};
+    r.data.forEach(function(t) {
+      if (!athleteMap[t.athlete_id]) {
+        athleteMap[t.athlete_id] = { athlete: t.athletes, tests: [] };
+      }
+      athleteMap[t.athlete_id].tests.push(t);
+    });
+
+    var squad = Object.values(athleteMap).map(function(a) {
+      var tests = a.tests.sort(function(x,y){ return new Date(x.test_date)-new Date(y.test_date); });
+      var latest = tests[tests.length-1];
+      var prev = tests.length > 1 ? tests[tests.length-2] : null;
+      var delta = (prev && latest.vift && prev.vift) ? parseFloat((latest.vift - prev.vift).toFixed(1)) : null;
+      return {
+        athlete_id: latest.athlete_id,
+        name: a.athlete ? a.athlete.first_name+' '+a.athlete.last_name : '',
+        position: a.athlete ? a.athlete.position : '',
+        latest_vift: latest.vift,
+        latest_date: latest.test_date,
+        test_number: latest.test_number,
+        map_watts: latest.map_watts,
+        peak_sprint_watts: latest.peak_sprint_watts,
+        bike_asr: latest.bike_asr,
+        delta: delta,
+        tests: tests
+      };
+    });
+
+    squad.sort(function(a,b){ return (b.latest_vift||0)-(a.latest_vift||0); });
+    res.json(squad);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/conditioning/:athleteId', async function(req, res) {
+  try {
+    var r = await supabase.from('conditioning_tests')
+      .select('*')
+      .eq('athlete_id', req.params.athleteId)
+      .order('test_date', { ascending: false });
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conditioning', async function(req, res) {
+  try {
+    var b = req.body;
+    var bikeAsr = (b.peak_sprint_watts && b.map_watts) ? b.peak_sprint_watts - b.map_watts : null;
+    var r = await supabase.from('conditioning_tests').insert({
+      athlete_id: b.athlete_id,
+      test_date: b.test_date,
+      test_number: b.test_number || null,
+      vift: b.vift || null,
+      map_watts: b.map_watts || null,
+      peak_sprint_watts: b.peak_sprint_watts || null,
+      bike_asr: bikeAsr,
+      notes: b.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/conditioning/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('conditioning_tests').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
