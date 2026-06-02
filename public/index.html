@@ -1288,44 +1288,45 @@ function showAthleteZones(athleteId, name, vift, mapW, asr) {
 }
 
 function buildWeeklyPrescription(vift, mapW) {
+  var v = vift || null;
+  var spd = function(pct) { return v ? (v*pct).toFixed(1)+' km/h' : (Math.round(pct*100)+'% VIFT'); };
+  var w = function(pct) { return mapW ? Math.round(mapW*pct)+'W' : (Math.round(pct*100)+'% MAP'); };
+
   var weeks = [
-    // Off-ice build (Wks 1-4)
-    { wk:1, phase:'Off-Ice Base', tue:'Continuous bike/row — 20 min @ '+(vift?'Zone 1-2':'65–70% HRmax'), fri:'Continuous run/slideboard — 25 min @ '+(vift?'Zone 2':'70–73% HRmax'), notes:'Foundation — conversational pace only' },
-    { wk:2, phase:'Off-Ice Base', tue:'Continuous threshold — 30 min @ '+(vift?'Zone 2-3':'74–77% HRmax'), fri:'Long intervals — 3×8 min @ '+(vift?'Zone 3':'80–83% HRmax')+' · 2 min rest', notes:'Aerobic development' },
-    { wk:3, phase:'Off-Ice Build', tue:'30:30 × 10 reps × 2 sets @ '+(vift?(vift*0.90).toFixed(1)+'–'+(vift*0.93).toFixed(1)+' km/h':'90–93% HRmax')+' · 3 min rest', fri:'30:30 × 12 reps × 2 sets @ '+(vift?(vift*0.92).toFixed(1)+'–'+(vift*0.95).toFixed(1)+' km/h':'92–95% HRmax'), notes:'First 30:30 exposure' },
-    { wk:4, phase:'Off-Ice Bridge', tue:'30:30 × 14 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+'–'+(vift*1.00).toFixed(1)+' km/h':'95–100% HRmax')+' · peak off-ice', fri:'30:15 × 10 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+' km/h':'95% HRmax')+' · 15s rest', notes:'30:15 preview — run VIFT test start of Wk 5' },
-    // July (Wks 5-8)
-    { wk:5, phase:'July Wk 1', tue:'ON-ICE: 30:30 × 10 reps × 2 sets @ '+(vift?(vift*0.95).toFixed(1)+' km/h':'95% VIFT')+' · 4 min rest', fri:'OFF-ICE: 30:30 × 10 reps × 2 sets @ '+(mapW?Math.round(mapW*1.00)+'–'+Math.round(mapW*1.03)+'W':'100–103% MAP')+' · 3 min rest', notes:'TEST VIFT before session · set all zones from result' },
-    { wk:6, phase:'July Wk 2', tue:'ON-ICE: 30:30 × 12 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', fri:'OFF-ICE: 30:30 × 12 reps × 2 sets @ '+(mapW?Math.round(mapW*1.03)+'–'+Math.round(mapW*1.05)+'W':'103–105% MAP'), notes:'Volume increase — add 3rd set Fri if recovery good' },
-    { wk:7, phase:'July Wk 3', tue:'ON-ICE: Set 1: 10×30:30 @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · Set 2: 8×30:15 @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT'), fri:'OFF-ICE: 30:30 × 14 reps × 2 sets @ '+(mapW?Math.round(mapW*1.05)+'W':'105% MAP')+' · peak off-ice volume', notes:'30:15 introduced on-ice only' },
-    { wk:8, phase:'July Wk 4', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+'–'+(vift*1.03).toFixed(1)+' km/h':'100–103% VIFT')+' · 4–5 min rest', fri:'OFF-ICE: 30:30 × 10 reps × 2 sets @ '+(mapW?Math.round(mapW*0.93)+'W':'93% MAP')+' ONLY · reduced', notes:'RETEST VIFT · recalculate all zones before August' },
-    // August (Wks 9-13)
-    { wk:9, phase:'Aug Transition', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 8 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · body adapts to dual on-ice', notes:'Replace off-ice Fri with on-ice · add Wed easy bike 15–20 min @ Zone 1' },
-    { wk:10, phase:'Aug Wk 1', tue:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Consolidation — Tue at 30:15 · Fri at 30:30' },
-    { wk:11, phase:'Aug Wk 2', tue:'ON-ICE: 30:15 × 12 reps × 2 sets @ '+(vift?(vift*1.03).toFixed(1)+' km/h':'103% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:30 × 12 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Volume step — both days increase' },
-    { wk:12, phase:'Aug Wk 3', tue:'ON-ICE: 30:15 × 12 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4–5 min rest', fri:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'Both days now 30:15 · Fri always lower volume than Tue' },
-    { wk:13, phase:'Aug Wk 4 — Peak', tue:'ON-ICE: 30:15 × 12 reps × 3 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4–5 min rest', fri:'ON-ICE: 30:15 × 10 reps × 2 sets @ '+(vift?(vift*1.00).toFixed(1)+' km/h':'100% VIFT')+' · 4 min rest', notes:'TEST VIFT · peak pre-season load · 3rd set Tue if recovery consistent' },
-    // Taper (Wks 14-15)
-    { wk:14, phase:'Camp Taper', tue:'ON-ICE: 30:15 × 8 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4 min rest', fri:'ON-ICE: 30:15 × 6 reps × 2 sets @ '+(vift?(vift*1.05).toFixed(1)+' km/h':'105% VIFT')+' · 4 min rest', notes:'Volume −35–40% · intensity maintained · arrive fresh' },
-    { wk:15, phase:'Training Camp', tue:'In-season maintenance protocol', fri:'In-season maintenance protocol', notes:'1–2 sessions/week · hold VIFT within 0.5 km/h of peak' },
+    // Off-Ice Base
+    { wk:1,  phase:'Off-Ice Base',     color:'#f0fdf4', session1:'Mon/Wed/Fri: 30 min continuous @ 65–70% HRmax · conversational pace · any modality', session2:'Tempo option: :10/:50 × 20 reps @ 70% HRmax', notes:'Rebuild aerobic base post-playoffs. No intensity.' },
+    { wk:2,  phase:'Off-Ice Base',     color:'#f0fdf4', session1:'Mon: 30 min continuous @ 74–77% HRmax · Wed: 3×8 min @ 80–83% HRmax · 2 min rest · Fri: 28 min @ 72–75% HRmax', session2:'Assault bike option: :11/:49 × 17 reps @ 70% HRmax OR slide board same duration', notes:'Aerobic development. Purposeful but sustainable.' },
+    { wk:3,  phase:'Off-Ice Build',    color:'#f0fdf4', session1:'Mon: 30:30 × 10 reps × 2 sets @ 90–93% HRmax · 3 min set rest', session2:'Wed: 22 min @ 70–73% HRmax (recovery) · Fri: 30:30 × 12 reps × 2 sets @ 92–95% HRmax · 3 min set rest', notes:'First 30:30 exposure. Assault bike preferred for sets.' },
+    { wk:4,  phase:'Off-Ice Bridge',   color:'#f0fdf4', session1:'Mon: 30:30 × 14 reps × 2 sets @ 95–100% HRmax · hardest off-ice session · Wed: 20 min easy flush @ 65–70%', session2:'Fri: 30:15 × 10 reps × 2 sets @ 95% HRmax with 15s rest · first 30:15 exposure', notes:'RUN ON-ICE 30-15 IFT at start of July Week 1 before prescribing any zones.' },
+    // July
+    { wk:5,  phase:'July Wk 1',        color:'#eff6ff', session1:'TUE ON-ICE: 30:30 × 10 reps × 2 sets @ '+spd(0.95)+' · 4 min set rest', session2:'FRI OFF-ICE: 30:30 × 10 reps × 2 sets @ 90–93% HRmax · 3 min set rest', notes:'TEST VIFT before Tue session. Set all zones from result. Expect 0.5–1.5 below peak.' },
+    { wk:6,  phase:'July Wk 2',        color:'#eff6ff', session1:'TUE ON-ICE: 30:30 × 12 reps × 2 sets @ '+spd(1.00)+' · 4 min set rest', session2:'FRI OFF-ICE: 30:30 × 12 reps × 2 sets @ 93–95% HRmax (add 3rd set of 8 if recovery good)', notes:'Volume step. Monitor HR recovery between sets.' },
+    { wk:7,  phase:'July Wk 3',        color:'#eff6ff', session1:'TUE ON-ICE Set 1: 30:30 × 10 reps @ '+spd(1.00)+' · Set 2: 30:15 × 8 reps @ '+spd(1.00)+' · 4 min between sets', session2:'FRI OFF-ICE: 30:30 × 14 reps × 2 sets @ 95–98% HRmax · 3 min set rest · PEAK off-ice volume', notes:'30:15 introduced on-ice only. One new stimulus at a time.' },
+    { wk:8,  phase:'July Wk 4',        color:'#eff6ff', session1:'TUE ON-ICE: 30:15 × 10 reps × 2 sets @ '+spd(1.00)+'–'+spd(1.03)+' · 4–5 min set rest', session2:'FRI OFF-ICE: 30:30 × 10 reps × 2 sets ONLY @ 93% HRmax · reduced — last off-ice conditioning session', notes:'RETEST VIFT on Tuesday. Recalculate ALL zones before August.' },
+    // August
+    { wk:9,  phase:'Aug Transition',   color:'#fdf4ff', session1:'TUE ON-ICE: 30:15 × 10 reps × 2 sets @ '+spd(1.03)+' · 4 min set rest · Wed: easy bike flush 15–20 min @ 65–70% HRmax', session2:'FRI ON-ICE (replaces off-ice): 30:30 × 8 reps × 2 sets @ '+spd(1.00)+' · reduced volume for transition', notes:'Both days now on-ice. Fri always 70–80% of Tue volume. Keep Wed flush throughout August.' },
+    { wk:10, phase:'Aug Wk 1',         color:'#fdf4ff', session1:'TUE ON-ICE: 30:15 × 10 reps × 2 sets @ '+spd(1.03)+' · 4 min set rest', session2:'FRI ON-ICE: 30:30 × 10 reps × 2 sets @ '+spd(1.00)+' · 4 min set rest', notes:'Consolidation week. Tue at 30:15, Fri at 30:30.' },
+    { wk:11, phase:'Aug Wk 2',         color:'#fdf4ff', session1:'TUE ON-ICE: 30:15 × 12 reps × 2 sets @ '+spd(1.03)+' · 4 min set rest', session2:'FRI ON-ICE: 30:30 × 12 reps × 2 sets @ '+spd(1.00)+' · 4 min set rest', notes:'Volume step — both days increase by 2 reps.' },
+    { wk:12, phase:'Aug Wk 3',         color:'#fdf4ff', session1:'TUE ON-ICE: 30:15 × 12 reps × 2 sets @ '+spd(1.05)+' · 4–5 min set rest', session2:'FRI ON-ICE: 30:15 × 10 reps × 2 sets @ '+spd(1.00)+' · 4 min set rest · Fri now also 30:15', notes:'Both days 30:15. Intensity step on Tuesday. Fri always lower volume.' },
+    { wk:13, phase:'Aug Peak',         color:'#fdf4ff', session1:'TUE ON-ICE: 30:15 × 12 reps × 3 sets @ '+spd(1.05)+' · 4–5 min set rest (3rd set only if consistent recovery)', session2:'FRI ON-ICE: 30:15 × 10 reps × 2 sets @ '+spd(1.00)+' · 4 min set rest', notes:'RETEST VIFT. Peak pre-camp conditioning load. Monitor closely for accumulated fatigue.' },
+    // Assault bike sprint phase (from 20-week doc Wks 9-18 overlay)
+    { wk:14, phase:'Bike Sprint Intro', color:'#fff7ed', session1:'ASSAULT BIKE: 5 cal sprint / :60 rest × 12 rounds · Med ball slam :05 optional circuit · :05/:60 × 10 min @ 65% HRmax recovery rounds', session2:'Circuit option: sled push 1.5×BW + 5 cal sprint (AMRAP 9 min)', notes:'Max effort each sprint. Full rest. Not for fitness — for speed and ASR development.' },
+    { wk:15, phase:'Bike Sprint Vol',  color:'#fff7ed', session1:'ASSAULT BIKE: 6 cal sprint / :60 rest × 14 rounds · same circuit as Wk 14 · 12 min recovery @ 65% HRmax', session2:'Alt: 8 cal × 12 rounds with 3 min blue recovery', notes:'Add 1 cal and 2 rounds each week. Rest stays full.' },
+    { wk:16, phase:'Bike Sprint Vol',  color:'#fff7ed', session1:'ASSAULT BIKE: 8 cal × 12 rounds · blue light recovery between · 1 mile @ PR pace or repeat <2 min', session2:'30 cal × 3 rounds · 3 min rest · goal ≤30 seconds each (90%+ HRmax)', notes:'30 cal sets introduced. Should feel near-maximal. Time each set.' },
+    { wk:17, phase:'Bike Sprint Peak', color:'#fff7ed', session1:'ASSAULT BIKE: 10 cal × 12 rounds · blue recovery · 35 cal × 2 rounds · 3 min rest + MB shuffle/side toss ×8e + slam to side toss ×8e (1 round circuit)', session2:'.5 miles × 3 rounds · 65% HRmax rest between', notes:'Highest sprint volume week. 35 cal must be honest max effort.' },
+    { wk:18, phase:'Bike Sprint Peak', color:'#fff7ed', session1:'ASSAULT BIKE: 30 cal × 2, MB circuit × 1, 35 cal × 1, MB circuit × 1 · .5 mile × 1, MB circuit × 1, .5 mile × 1', session2:'Complex format. Rotate between cals and MB circuit for full session.', notes:'Most complex session. Gut check week before camp.' },
+    { wk:19, phase:'On-Ice Lactic',   color:'#fef3c7', session1:'ON-ICE Lactic Power: :30/:65% HRmax × 2, :35/:65% HRmax × 2, :40 max × 1 · :10/:65% HRmax × 17 min continuous', session2:'This is race-pace work. Full emotional effort. 2 days rest after.', notes:'Final high-load on-ice session. Maximum lactic output.' },
+    { wk:20, phase:'Camp Taper',      color:'#fef3c7', session1:'ON-ICE: 30:15 × 8 reps × 2 sets @ '+spd(1.05)+' · 4 min set rest · RETEST VIFT', session2:'OFF-ICE: Recovery tempos · 10% below max NIRS · HR 65–78% · lower to 65% is better · HR should descend not plateau', notes:'Volume −35–40% vs peak. Intensity fully maintained. Arrive fresh.' },
   ];
 
-  var phaseColors = {
-    'Off-Ice Base':'#f0fdf4','Off-Ice Build':'#f0fdf4','Off-Ice Bridge':'#f0fdf4',
-    'July Wk 1':'#eff6ff','July Wk 2':'#eff6ff','July Wk 3':'#eff6ff','July Wk 4':'#eff6ff',
-    'Aug Transition':'#fdf4ff','Aug Wk 1':'#fdf4ff','Aug Wk 2':'#fdf4ff','Aug Wk 3':'#fdf4ff','Aug Wk 4 — Peak':'#fdf4ff',
-    'Camp Taper':'#fef3c7','Training Camp':'#f1f5f9',
-  };
-
-  var h = '<table style="font-size:10px"><thead><tr><th style="width:30px">Wk</th><th style="width:80px">Phase</th><th>Tuesday</th><th>Friday</th><th>Notes</th></tr></thead><tbody>';
+  var h = '<table style="font-size:10px;width:100%"><thead><tr style="background:#f1f5f9"><th style="width:28px;padding:4px">Wk</th><th style="width:90px;padding:4px">Phase</th><th style="padding:4px">Session A (Primary)</th><th style="padding:4px">Session B</th><th style="width:160px;padding:4px">Coach Notes</th></tr></thead><tbody>';
   weeks.forEach(function(w) {
-    var bg = phaseColors[w.phase] || 'white';
-    h += '<tr style="background:'+bg+'">';
-    h += '<td style="font-weight:700;text-align:center">'+w.wk+'</td>';
-    h += '<td style="font-weight:600;font-size:9px;color:#64748b">'+w.phase+'</td>';
-    h += '<td>'+w.tue+'</td>';
-    h += '<td>'+w.fri+'</td>';
-    h += '<td style="font-size:9px;color:#64748b;font-style:italic">'+w.notes+'</td>';
+    h += '<tr style="background:'+w.color+';border-bottom:1px solid #e2e8f0">';
+    h += '<td style="font-weight:700;text-align:center;padding:4px 2px">'+w.wk+'</td>';
+    h += '<td style="font-weight:600;font-size:9px;color:#374151;padding:4px 2px">'+w.phase+'</td>';
+    h += '<td style="padding:4px">'+w.session1+'</td>';
+    h += '<td style="padding:4px">'+w.session2+'</td>';
+    h += '<td style="font-size:9px;color:#64748b;font-style:italic;padding:4px">'+w.notes+'</td>';
     h += '</tr>';
   });
   h += '</tbody></table>';
