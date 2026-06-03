@@ -142,6 +142,28 @@ app.post('/api/programs/:id/assign', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/programs/dashboard', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_programs')
+      .select('athlete_id, program_id, programs(id,name,weeks,phase), athletes(first_name,last_name,position)')
+      .eq('active', true);
+    if (r.error) throw r.error;
+    var results = r.data.map(function(row) {
+      return {
+        athlete_id: row.athlete_id,
+        name: row.athletes ? row.athletes.first_name+' '+row.athletes.last_name : '',
+        position: row.athletes ? row.athletes.position : '',
+        program_name: row.programs ? row.programs.name : '',
+        program_id: row.program_id,
+        weeks: row.programs ? row.programs.weeks : null,
+        phase: row.programs ? row.programs.phase : null,
+      };
+    });
+    results.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    res.json(results);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/programs/:id/days', async function(req, res) {
   try {
     var r = await supabase.from('program_days')
@@ -701,6 +723,101 @@ app.get('/api/conditioning/squad', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/conditioning/dashboard', async function(req, res) {
+  try {
+    // Step 1: get all active assignments
+    var assignR = await supabase.from('athlete_conditioning_programs')
+      .select('athlete_id, program_id').eq('active', true);
+    if (assignR.error) throw assignR.error;
+    if (!assignR.data.length) { res.json([]); return; }
+
+    var results = [];
+    for (var i = 0; i < assignR.data.length; i++) {
+      var row = assignR.data[i];
+
+      // Get athlete
+      var athR = await supabase.from('athletes').select('first_name,last_name,position').eq('id', row.athlete_id).single();
+      // Get program
+      var progR = await supabase.from('conditioning_programs').select('id,name,mode,weeks,start_date,current_week').eq('id', row.program_id).single();
+      if (progR.error || !progR.data) continue;
+      var prog = progR.data;
+
+      var currentWeek = prog.current_week || 1;
+      if (prog.start_date) {
+        var start = new Date(prog.start_date);
+        var now = new Date();
+        var diffWeeks = Math.floor((now - start) / (7*24*60*60*1000));
+        currentWeek = Math.min(Math.max(1, diffWeeks+1), prog.weeks);
+      }
+
+      // Get current week protocol name
+      var wkR = await supabase.from('conditioning_program_weeks')
+        .select('id,session_a_custom,session_a_protocol_id')
+        .eq('program_id', prog.id).eq('week_number', currentWeek).maybeSingle();
+
+      var nextSession = 'No session assigned';
+      if (wkR.data) {
+        if (wkR.data.session_a_custom) {
+          nextSession = wkR.data.session_a_custom;
+        } else if (wkR.data.session_a_protocol_id) {
+          var protoR = await supabase.from('conditioning_protocols').select('name').eq('id', wkR.data.session_a_protocol_id).single();
+          if (!protoR.error) nextSession = protoR.data.name;
+        }
+      }
+
+      // Count logs
+      var logR = await supabase.from('conditioning_session_logs')
+        .select('id').eq('athlete_id', row.athlete_id).eq('program_id', prog.id).neq('status','skipped');
+      var sessionsDone = logR.data ? logR.data.length : 0;
+
+      results.push({
+        athlete_id: row.athlete_id,
+        name: athR.data ? athR.data.first_name+' '+athR.data.last_name : '',
+        position: athR.data ? athR.data.position : '',
+        program_name: prog.name,
+        program_mode: prog.mode,
+        current_week: currentWeek,
+        total_weeks: prog.weeks,
+        next_session: nextSession,
+        sessions_logged: sessionsDone,
+      });
+    }
+
+    res.json(results);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/conditioning/workout-day', async function(req, res) {
+  try {
+    var athleteId = req.query.athlete_id;
+    var weekNumber = parseInt(req.query.week) || 1;
+
+    // Get athlete's active conditioning program
+    var apR = await supabase.from('athlete_conditioning_programs')
+      .select('program_id').eq('athlete_id', athleteId).eq('active', true)
+      .order('created_at', { ascending: false }).limit(1).single();
+
+    if (apR.error || !apR.data) { res.json({ session: null }); return; }
+
+    var wkR = await supabase.from('conditioning_program_weeks')
+      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
+      .eq('program_id', apR.data.program_id).eq('week_number', weekNumber).single();
+
+    if (wkR.error || !wkR.data) { res.json({ session: null }); return; }
+
+    res.json({
+      session: {
+        phase: wkR.data.phase,
+        session_a: wkR.data.session_a_custom || (wkR.data.session_a ? wkR.data.session_a.name : null),
+        session_a_detail: wkR.data.session_a ? (wkR.data.session_a.format||'')+(wkR.data.session_a.volume?' · '+wkR.data.session_a.volume:'') : null,
+        session_b: wkR.data.session_b_custom || (wkR.data.session_b ? wkR.data.session_b.name : null),
+        session_b_detail: wkR.data.session_b ? (wkR.data.session_b.format||'')+(wkR.data.session_b.volume?' · '+wkR.data.session_b.volume:'') : null,
+        notes: wkR.data.notes,
+      }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/conditioning/:athleteId', async function(req, res) {
   try {
     var r = await supabase.from('conditioning_tests')
@@ -711,6 +828,8 @@ app.get('/api/conditioning/:athleteId', async function(req, res) {
     res.json(r.data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+
 
 app.post('/api/conditioning', async function(req, res) {
   try {
@@ -1166,69 +1285,7 @@ app.get('/api/conditioning-logs', async function(req, res) {
 });
 
 // Dashboard conditioning summary — current week status per athlete
-app.get('/api/conditioning/dashboard', async function(req, res) {
-  try {
-    // Step 1: get all active assignments
-    var assignR = await supabase.from('athlete_conditioning_programs')
-      .select('athlete_id, program_id').eq('active', true);
-    if (assignR.error) throw assignR.error;
-    if (!assignR.data.length) { res.json([]); return; }
 
-    var results = [];
-    for (var i = 0; i < assignR.data.length; i++) {
-      var row = assignR.data[i];
-
-      // Get athlete
-      var athR = await supabase.from('athletes').select('first_name,last_name,position').eq('id', row.athlete_id).single();
-      // Get program
-      var progR = await supabase.from('conditioning_programs').select('id,name,mode,weeks,start_date,current_week').eq('id', row.program_id).single();
-      if (progR.error || !progR.data) continue;
-      var prog = progR.data;
-
-      var currentWeek = prog.current_week || 1;
-      if (prog.start_date) {
-        var start = new Date(prog.start_date);
-        var now = new Date();
-        var diffWeeks = Math.floor((now - start) / (7*24*60*60*1000));
-        currentWeek = Math.min(Math.max(1, diffWeeks+1), prog.weeks);
-      }
-
-      // Get current week protocol name
-      var wkR = await supabase.from('conditioning_program_weeks')
-        .select('id,session_a_custom,session_a_protocol_id')
-        .eq('program_id', prog.id).eq('week_number', currentWeek).maybeSingle();
-
-      var nextSession = 'No session assigned';
-      if (wkR.data) {
-        if (wkR.data.session_a_custom) {
-          nextSession = wkR.data.session_a_custom;
-        } else if (wkR.data.session_a_protocol_id) {
-          var protoR = await supabase.from('conditioning_protocols').select('name').eq('id', wkR.data.session_a_protocol_id).single();
-          if (!protoR.error) nextSession = protoR.data.name;
-        }
-      }
-
-      // Count logs
-      var logR = await supabase.from('conditioning_session_logs')
-        .select('id').eq('athlete_id', row.athlete_id).eq('program_id', prog.id).neq('status','skipped');
-      var sessionsDone = logR.data ? logR.data.length : 0;
-
-      results.push({
-        athlete_id: row.athlete_id,
-        name: athR.data ? athR.data.first_name+' '+athR.data.last_name : '',
-        position: athR.data ? athR.data.position : '',
-        program_name: prog.name,
-        program_mode: prog.mode,
-        current_week: currentWeek,
-        total_weeks: prog.weeks,
-        next_session: nextSession,
-        sessions_logged: sessionsDone,
-      });
-    }
-
-    res.json(results);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
 // Print conditioning program
 app.get('/api/conditioning-programs/:id/print', async function(req, res) {
@@ -1246,36 +1303,7 @@ app.get('/api/conditioning-programs/:id/print', async function(req, res) {
 });
 
 // Workout builder conditioning day — get protocol for athlete + week
-app.get('/api/conditioning/workout-day', async function(req, res) {
-  try {
-    var athleteId = req.query.athlete_id;
-    var weekNumber = parseInt(req.query.week) || 1;
 
-    // Get athlete's active conditioning program
-    var apR = await supabase.from('athlete_conditioning_programs')
-      .select('program_id').eq('athlete_id', athleteId).eq('active', true)
-      .order('created_at', { ascending: false }).limit(1).single();
-
-    if (apR.error || !apR.data) { res.json({ session: null }); return; }
-
-    var wkR = await supabase.from('conditioning_program_weeks')
-      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
-      .eq('program_id', apR.data.program_id).eq('week_number', weekNumber).single();
-
-    if (wkR.error || !wkR.data) { res.json({ session: null }); return; }
-
-    res.json({
-      session: {
-        phase: wkR.data.phase,
-        session_a: wkR.data.session_a_custom || (wkR.data.session_a ? wkR.data.session_a.name : null),
-        session_a_detail: wkR.data.session_a ? (wkR.data.session_a.format||'')+(wkR.data.session_a.volume?' · '+wkR.data.session_a.volume:'') : null,
-        session_b: wkR.data.session_b_custom || (wkR.data.session_b ? wkR.data.session_b.name : null),
-        session_b_detail: wkR.data.session_b ? (wkR.data.session_b.format||'')+(wkR.data.session_b.volume?' · '+wkR.data.session_b.volume:'') : null,
-        notes: wkR.data.notes,
-      }
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
 
 // ============================================================
@@ -1454,27 +1482,7 @@ app.patch('/api/programs/:id', async function(req, res) {
 });
 
 
-app.get('/api/programs/dashboard', async function(req, res) {
-  try {
-    var r = await supabase.from('athlete_programs')
-      .select('athlete_id, program_id, programs(id,name,weeks,phase), athletes(first_name,last_name,position)')
-      .eq('active', true);
-    if (r.error) throw r.error;
-    var results = r.data.map(function(row) {
-      return {
-        athlete_id: row.athlete_id,
-        name: row.athletes ? row.athletes.first_name+' '+row.athletes.last_name : '',
-        position: row.athletes ? row.athletes.position : '',
-        program_name: row.programs ? row.programs.name : '',
-        program_id: row.program_id,
-        weeks: row.programs ? row.programs.weeks : null,
-        phase: row.programs ? row.programs.phase : null,
-      };
-    });
-    results.sort(function(a,b){ return a.name.localeCompare(b.name); });
-    res.json(results);
-  } catch(err) { res.status(500).json({ error: err.message }); }
-});
+
 
 app.get('/api/exercises', async function(req, res) {
   try {
