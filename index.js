@@ -1057,6 +1057,212 @@ app.post('/api/conditioning-programs/:id/autofill', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ============================================================
+// CONDITIONING — ADVANCED ROUTES
+// ============================================================
+
+// Squad assign — assign one program to multiple athletes
+app.post('/api/conditioning-programs/:id/squad-assign', async function(req, res) {
+  try {
+    var progId = req.params.id;
+    var athleteIds = req.body.athlete_ids || [];
+    var startDate = req.body.start_date || null;
+    var startWeek = req.body.start_week || 1;
+
+    if (startDate) {
+      await supabase.from('conditioning_programs').update({ start_date: startDate, current_week: startWeek }).eq('id', progId);
+    }
+
+    var results = { assigned: [], errors: [] };
+    for (var i = 0; i < athleteIds.length; i++) {
+      var aid = athleteIds[i];
+      var r1 = await supabase.from('athlete_conditioning_programs').upsert({
+        athlete_id: aid, program_id: progId, active: true
+      }, { onConflict: 'athlete_id,program_id' });
+      var r2 = await supabase.from('conditioning_squad_assignments').upsert({
+        program_id: progId, athlete_id: aid,
+        assigned_date: startDate || new Date().toISOString().split('T')[0],
+        start_week: startWeek,
+      }, { onConflict: 'program_id,athlete_id' });
+      if (r1.error || r2.error) results.errors.push(aid);
+      else results.assigned.push(aid);
+    }
+    res.json(results);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get current week for athlete based on start_date
+app.get('/api/conditioning-programs/:id/current-week', async function(req, res) {
+  try {
+    var progId = req.params.id;
+    var athleteId = req.query.athlete_id;
+
+    var progR = await supabase.from('conditioning_programs').select('*').eq('id', progId).single();
+    if (progR.error) throw progR.error;
+    var prog = progR.data;
+
+    var currentWeek = prog.current_week || 1;
+    if (prog.start_date) {
+      var start = new Date(prog.start_date);
+      var now = new Date();
+      var diffMs = now - start;
+      var diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+      currentWeek = Math.min(Math.max(1, diffWeeks + 1), prog.weeks);
+    }
+
+    // Get the week data
+    var wkR = await supabase.from('conditioning_program_weeks')
+      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
+      .eq('program_id', progId).eq('week_number', currentWeek).single();
+
+    // Get completion logs for this week
+    var logs = { a: null, b: null };
+    if (wkR.data && athleteId) {
+      var logR = await supabase.from('conditioning_session_logs')
+        .select('*').eq('week_id', wkR.data.id).eq('athlete_id', athleteId);
+      if (!logR.error) {
+        logR.data.forEach(function(l) { logs[l.slot] = l; });
+      }
+    }
+
+    res.json({ current_week: currentWeek, week_data: wkR.data || null, logs: logs, program: prog });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Log a completed session
+app.post('/api/conditioning-logs', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('conditioning_session_logs').insert({
+      athlete_id: b.athlete_id,
+      program_id: b.program_id || null,
+      week_id: b.week_id || null,
+      session_date: b.session_date || new Date().toISOString().split('T')[0],
+      slot: b.slot || 'a',
+      status: b.status || 'completed',
+      rpe: b.rpe || null,
+      actual_protocol: b.actual_protocol || null,
+      notes: b.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get logs for a program/athlete
+app.get('/api/conditioning-logs', async function(req, res) {
+  try {
+    var q = supabase.from('conditioning_session_logs')
+      .select('*, athletes(first_name, last_name)')
+      .order('session_date', { ascending: false });
+    if (req.query.athlete_id) q = q.eq('athlete_id', req.query.athlete_id);
+    if (req.query.program_id) q = q.eq('program_id', req.query.program_id);
+    if (req.query.week_id) q = q.eq('week_id', req.query.week_id);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Dashboard conditioning summary — current week status per athlete
+app.get('/api/conditioning/dashboard', async function(req, res) {
+  try {
+    // Get all active assignments
+    var assignR = await supabase.from('athlete_conditioning_programs')
+      .select('athlete_id, program_id, conditioning_programs(id,name,mode,weeks,start_date,current_week), athletes(first_name,last_name,position)')
+      .eq('active', true);
+    if (assignR.error) throw assignR.error;
+
+    var results = [];
+    for (var i = 0; i < assignR.data.length; i++) {
+      var row = assignR.data[i];
+      var prog = row.conditioning_programs;
+      if (!prog) continue;
+
+      var currentWeek = prog.current_week || 1;
+      if (prog.start_date) {
+        var start = new Date(prog.start_date);
+        var now = new Date();
+        var diffWeeks = Math.floor((now - start) / (7*24*60*60*1000));
+        currentWeek = Math.min(Math.max(1, diffWeeks+1), prog.weeks);
+      }
+
+      // Get current week sessions
+      var wkR = await supabase.from('conditioning_program_weeks')
+        .select('id, session_a_custom, session_b_custom, conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(name)')
+        .eq('program_id', prog.id).eq('week_number', currentWeek).single();
+
+      // Check if logged this week
+      var logR = await supabase.from('conditioning_session_logs')
+        .select('slot,status').eq('athlete_id', row.athlete_id).eq('program_id', prog.id);
+
+      var sessionsDone = logR.data ? logR.data.filter(function(l){ return l.status !== 'skipped'; }).length : 0;
+
+      results.push({
+        athlete_id: row.athlete_id,
+        name: row.athletes ? row.athletes.first_name+' '+row.athletes.last_name : '',
+        position: row.athletes ? row.athletes.position : '',
+        program_name: prog.name,
+        program_mode: prog.mode,
+        current_week: currentWeek,
+        total_weeks: prog.weeks,
+        next_session: wkR.data ? (wkR.data['conditioning_protocols'] ? wkR.data['conditioning_protocols'].name : wkR.data.session_a_custom || 'See program') : 'No session assigned',
+        sessions_logged: sessionsDone,
+      });
+    }
+
+    res.json(results);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Print conditioning program
+app.get('/api/conditioning-programs/:id/print', async function(req, res) {
+  try {
+    var progR = await supabase.from('conditioning_programs').select('*').eq('id', req.params.id).single();
+    if (progR.error) throw progR.error;
+
+    var weeksR = await supabase.from('conditioning_program_weeks')
+      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
+      .eq('program_id', req.params.id).order('week_number');
+    if (weeksR.error) throw weeksR.error;
+
+    res.json({ program: progR.data, weeks: weeksR.data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Workout builder conditioning day — get protocol for athlete + week
+app.get('/api/conditioning/workout-day', async function(req, res) {
+  try {
+    var athleteId = req.query.athlete_id;
+    var weekNumber = parseInt(req.query.week) || 1;
+
+    // Get athlete's active conditioning program
+    var apR = await supabase.from('athlete_conditioning_programs')
+      .select('program_id').eq('athlete_id', athleteId).eq('active', true)
+      .order('created_at', { ascending: false }).limit(1).single();
+
+    if (apR.error || !apR.data) { res.json({ session: null }); return; }
+
+    var wkR = await supabase.from('conditioning_program_weeks')
+      .select('*, session_a:conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(*), session_b:conditioning_protocols!conditioning_program_weeks_session_b_protocol_id_fkey(*)')
+      .eq('program_id', apR.data.program_id).eq('week_number', weekNumber).single();
+
+    if (wkR.error || !wkR.data) { res.json({ session: null }); return; }
+
+    res.json({
+      session: {
+        phase: wkR.data.phase,
+        session_a: wkR.data.session_a_custom || (wkR.data.session_a ? wkR.data.session_a.name : null),
+        session_a_detail: wkR.data.session_a ? (wkR.data.session_a.format||'')+(wkR.data.session_a.volume?' · '+wkR.data.session_a.volume:'') : null,
+        session_b: wkR.data.session_b_custom || (wkR.data.session_b ? wkR.data.session_b.name : null),
+        session_b_detail: wkR.data.session_b ? (wkR.data.session_b.format||'')+(wkR.data.session_b.volume?' · '+wkR.data.session_b.volume:'') : null,
+        notes: wkR.data.notes,
+      }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
