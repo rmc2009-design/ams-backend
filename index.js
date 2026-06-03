@@ -1484,6 +1484,145 @@ app.patch('/api/programs/:id', async function(req, res) {
 
 
 
+
+// ============================================================
+// VIDEO MANAGEMENT
+// ============================================================
+
+// Bulk import videos from Google Drive share links
+app.post('/api/videos/import', async function(req, res) {
+  try {
+    var links = req.body.links || [];
+    var results = { matched: [], unmatched: [], errors: [] };
+
+    // Get all exercises
+    var exR = await supabase.from('exercises').select('id, name');
+    if (exR.error) throw exR.error;
+    var exercises = exR.data;
+
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i].trim();
+      if (!link) continue;
+
+      // Extract file ID from Drive URL
+      var fileId = null;
+      var m = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m) fileId = m[1];
+      if (!fileId) { results.errors.push(link); continue; }
+
+      // Get filename from Drive
+      var fileName = req.body.names ? req.body.names[i] : null;
+      if (!fileName) {
+        // Try to fetch the page title
+        try {
+          var https = require('https');
+          fileName = await new Promise(function(resolve) {
+            var url = 'https://drive.google.com/file/d/'+fileId+'/view';
+            https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, function(resp) {
+              var data = '';
+              resp.on('data', function(chunk){ data += chunk; });
+              resp.on('end', function(){
+                var titleMatch = data.match(/<title>([^<]+) - Google Drive<\/title>/);
+                if (titleMatch) {
+                  var name = titleMatch[1].trim().replace(/\.MOV$/i,'').replace(/\.mp4$/i,'').replace(/\.mov$/i,'').trim();
+                  resolve(name);
+                } else { resolve(null); }
+              });
+            }).on('error', function(){ resolve(null); });
+          });
+        } catch(e) { fileName = null; }
+      }
+
+      if (!fileName) { results.errors.push(link); continue; }
+
+      // Clean up filename for matching
+      var cleanName = fileName.replace(/\.MOV$/i,'').replace(/\.mp4$/i,'').replace(/\.mov$/i,'').trim().toLowerCase();
+
+      // Find best matching exercise
+      var bestMatch = null;
+      var bestScore = 0;
+      for (var j = 0; j < exercises.length; j++) {
+        var exName = exercises[j].name.toLowerCase();
+        // Exact match
+        if (exName === cleanName) { bestMatch = exercises[j]; bestScore = 1; break; }
+        // Contains match
+        if (exName.includes(cleanName) || cleanName.includes(exName)) {
+          var score = Math.min(exName.length, cleanName.length) / Math.max(exName.length, cleanName.length);
+          if (score > bestScore) { bestScore = score; bestMatch = exercises[j]; }
+        }
+        // Word overlap
+        var exWords = exName.split(/\s+/);
+        var vidWords = cleanName.split(/\s+/);
+        var overlap = exWords.filter(function(w){ return vidWords.includes(w) && w.length > 2; }).length;
+        if (overlap > 0) {
+          var score2 = overlap / Math.max(exWords.length, vidWords.length);
+          if (score2 > bestScore) { bestScore = score2; bestMatch = exercises[j]; }
+        }
+      }
+
+      var videoUrl = 'https://drive.google.com/file/d/'+fileId+'/preview';
+
+      if (bestMatch && bestScore >= 0.4) {
+        await supabase.from('exercises').update({
+          video_url: videoUrl,
+          video_file_id: fileId,
+        }).eq('id', bestMatch.id);
+        results.matched.push({ file: fileName, exercise: bestMatch.name, score: Math.round(bestScore*100) });
+      } else {
+        // Store unmatched for manual review
+        results.unmatched.push({ file: fileName, fileId: fileId, url: videoUrl });
+      }
+    }
+
+    res.json(results);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Manually link a video to an exercise
+app.patch('/api/exercises/:id/video', async function(req, res) {
+  try {
+    var fileId = null;
+    var m = req.body.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (m) fileId = m[1];
+    var videoUrl = fileId ? 'https://drive.google.com/file/d/'+fileId+'/preview' : req.body.url;
+    var r = await supabase.from('exercises').update({
+      video_url: videoUrl,
+      video_file_id: fileId,
+    }).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get exercises with videos
+app.get('/api/exercises/videos', async function(req, res) {
+  try {
+    var r = await supabase.from('exercises').select('id,name,category,video_url,video_file_id')
+      .not('video_url', 'is', null).order('name');
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Update exercise with video manually
+app.patch('/api/exercises/:id', async function(req, res) {
+  try {
+    var updates = {};
+    if (req.body.video_url !== undefined) {
+      var fileId = null;
+      var m = (req.body.video_url||'').match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m) fileId = m[1];
+      updates.video_url = fileId ? 'https://drive.google.com/file/d/'+fileId+'/preview' : req.body.video_url;
+      updates.video_file_id = fileId;
+    }
+    if (req.body.name !== undefined) updates.name = req.body.name;
+    if (req.body.category !== undefined) updates.category = req.body.category;
+    var r = await supabase.from('exercises').update(updates).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
