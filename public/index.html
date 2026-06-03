@@ -92,6 +92,7 @@ tr:last-child td { border-bottom:none; }
   <button onclick="sp('c',this)">Conditioning</button>
   <button onclick="sp('cp',this)">Cond. Programs</button>
   <button onclick="sp('pl',this)">Proto Library</button>
+  <button onclick="sp('v',this)">Videos</button>
   <button onclick="sp('t',this)">Templates</button>
   <button onclick="sp('i',this)">Import</button>
 </div>
@@ -708,6 +709,15 @@ tr:last-child td { border-bottom:none; }
       </div>
     </div>
   </div>
+  <!-- Video Modal -->
+  <div id="video-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:600px;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 id="video-modal-title" style="font-size:14px;margin-bottom:0"></h3>
+      <button onclick="closeVideoModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">×</button>
+    </div>
+    <div id="video-modal-player"></div>
+  </div>
+  <div id="video-modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1999" onclick="closeVideoModal()"></div>
   <!-- Session Log Modal -->
   <div id="log-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:420px;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -752,6 +762,35 @@ tr:last-child td { border-bottom:none; }
     <div id="log-result" class="mt"></div>
   </div>
   <div id="log-modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="closeLogModal()"></div>
+  <div class="pg" id="pv">
+    <div class="two">
+      <div>
+        <div class="card">
+          <h3>Bulk Import Videos</h3>
+          <div style="font-size:12px;color:#374151;margin-bottom:12px">Paste your Google Drive share links below — one per line. The system will automatically match each video to an exercise by filename.</div>
+          <textarea id="video-links" style="width:100%;height:180px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:11px;font-family:monospace" placeholder="https://drive.google.com/file/d/ABC123/view?usp=sharing&#10;https://drive.google.com/file/d/DEF456/view?usp=sharing&#10;..."></textarea>
+          <button class="btn" onclick="importVideos()" style="margin-top:8px">Import Videos</button>
+          <div id="video-import-result" class="mt"></div>
+        </div>
+        <div class="card" style="margin-top:0">
+          <h3>Exercise Video Library</h3>
+          <input type="text" id="video-search" class="inp" placeholder="Search exercises..." oninput="filterVideoLibrary()" style="margin-bottom:8px">
+          <div id="video-library"><div class="em">Loading...</div></div>
+        </div>
+      </div>
+      <div class="card" id="video-detail" style="display:none">
+        <h3 id="video-detail-name"></h3>
+        <div id="video-player" style="margin-bottom:16px"></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">Update video link:</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="video-url-input" class="inp" placeholder="Paste Google Drive share link...">
+          <button class="btn" onclick="saveVideoLink()" style="white-space:nowrap">Save</button>
+        </div>
+        <div id="video-save-result" class="mt"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Global Protocol Picker Modal -->
   <div id="proto-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:500px;max-height:70vh;overflow-y:auto;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -813,11 +852,12 @@ function sp(n,btn){
   if(n==='s')ls();
   if(n==='an'){fetchAthletes(function(){populateSel('an-athlete');la();});}
   if(n==='as'){fetchAthletes(function(){populateSel('as-athlete');document.getElementById('as-date').value=new Date().toISOString().split('T')[0];});}
-  if(n==='w'){fetchAthletes(function(){populateSel('w-athlete');});}
+  if(n==='w'){fetchAthletes(function(){populateSel('w-athlete');});ensureExercisesLoaded(function(){});}
   if(n==='t'){loadTemplates();}
   if(n==='c'){loadConditioningSquad();}
   if(n==='cp'){loadCondPrograms();}
   if(n==='pl'){loadProtoLibrary();}
+  if(n==='v'){loadVideoPage();}
 }
 
 function bx(t,c){return '<span class="b '+c+'">'+t+'</span>';}
@@ -1114,7 +1154,9 @@ function renderProgramDays(id){
         for(var e=0;e<exs.length;e++){
           var ex=exs[e];var prog=null;var progs=ex.workout_progressions||[];
           for(var p=0;p<progs.length;p++){if(progs[p].week_number==week){prog=progs[p];break;}}
-          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+'</td><td class="editable-sets" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit sets">'+(ex.sets||'-')+'</td><td class="editable-tempo" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit tempo">'+(ex.tempo||'-')+'</td><td class="editable-rest" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit rest">'+(ex.rest||'-')+'</td><td class="editable-reps" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit reps">'+(prog&&prog.reps?prog.reps:'-')+'</td><td class="editable-weight" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit weight">'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
+          var videoUrl = getVideoForExercise(ex.exercise_name);
+          var videoBtn = videoUrl ? '<button onclick="showVideoModal(\''+videoUrl+'\',\''+ex.exercise_name+'\''+')" style="border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;vertical-align:middle" title="Watch video">▶</button>' : '';
+          h+='<tr><td class="ex-swap" data-exid="'+ex.id+'" style="font-weight:500;cursor:pointer;color:#2563eb" title="Click to swap">'+ex.exercise_name+videoBtn+'</td><td class="editable-sets" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit sets">'+(ex.sets||'-')+'</td><td class="editable-tempo" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit tempo">'+(ex.tempo||'-')+'</td><td class="editable-rest" data-exid="'+ex.id+'" style="cursor:pointer" title="Click to edit rest">'+(ex.rest||'-')+'</td><td class="editable-reps" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit reps">'+(prog&&prog.reps?prog.reps:'-')+'</td><td class="editable-weight" data-exid="'+ex.id+'" data-week="'+week+'" data-progid="'+(prog?prog.id:'')+'" style="cursor:pointer" title="Click to edit weight">'+(prog&&prog.weight?prog.weight:'-')+'</td></tr>';
         }
         h+='</tbody></table>';
       }
@@ -2719,6 +2761,183 @@ function renameProgram() {
   });
 }
 
+
+// ============================================================
+// VIDEO MANAGEMENT
+// ============================================================
+var _allExercisesWithVideos = {};
+var _videoLibraryCache = [];
+var _currentVideoExId = null;
+
+function loadVideoPage() {
+  loadVideoLibrary();
+}
+
+function loadVideoLibrary() {
+  fetch('/api/exercises').then(function(r){return r.json();}).then(function(data){
+    _videoLibraryCache = data;
+    // Build video lookup map (id -> video_url)
+    data.forEach(function(e){ if(e.video_url) _allExercisesWithVideos[e.id] = e.video_url; });
+    renderVideoLibrary(data);
+  });
+}
+
+function renderVideoLibrary(exercises) {
+  var el = document.getElementById('video-library');
+  if (!el) return;
+  var withVideo = exercises.filter(function(e){ return e.video_url; });
+  var withoutVideo = exercises.filter(function(e){ return !e.video_url; });
+
+  var h = '<div style="display:flex;gap:12px;margin-bottom:12px">';
+  h += '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 12px;font-size:12px"><strong>'+withVideo.length+'</strong> with video</div>';
+  h += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;font-size:12px"><strong>'+withoutVideo.length+'</strong> without video</div>';
+  h += '</div>';
+
+  if (withVideo.length) {
+    h += '<div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;margin-bottom:6px">✓ Has Video</div>';
+    withVideo.forEach(function(e) {
+      h += '<div class="prog-item" style="padding:6px 10px;margin-bottom:3px;border-left:3px solid #22c55e" data-eid="'+e.id+'" onclick="showVideoDetail(this.dataset.eid)">';
+      h += '<div style="font-size:12px;font-weight:600">'+e.name+'</div>';
+      h += '<div style="font-size:10px;color:#64748b">'+e.category+'</div>';
+      h += '</div>';
+    });
+  }
+
+  if (withoutVideo.length) {
+    h += '<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:12px 0 6px">No Video</div>';
+    withoutVideo.forEach(function(e) {
+      h += '<div class="prog-item" style="padding:6px 10px;margin-bottom:3px;opacity:0.7" data-eid="'+e.id+'" onclick="showVideoDetail(this.dataset.eid)">';
+      h += '<div style="font-size:12px">'+e.name+'</div>';
+      h += '<div style="font-size:10px;color:#94a3b8">'+e.category+' · Click to add video</div>';
+      h += '</div>';
+    });
+  }
+
+  el.innerHTML = h;
+}
+
+function filterVideoLibrary() {
+  var q = document.getElementById('video-search').value.toLowerCase();
+  var filtered = q ? _videoLibraryCache.filter(function(e){ return e.name.toLowerCase().includes(q); }) : _videoLibraryCache;
+  renderVideoLibrary(filtered);
+}
+
+function showVideoDetail(exId) {
+  _currentVideoExId = exId;
+  var ex = _videoLibraryCache.find(function(e){ return e.id === exId; });
+  if (!ex) return;
+  var card = document.getElementById('video-detail');
+  card.style.display = 'block';
+  document.getElementById('video-detail-name').textContent = ex.name;
+  document.getElementById('video-url-input').value = ex.video_url || '';
+  document.getElementById('video-save-result').style.display = 'none';
+
+  var playerEl = document.getElementById('video-player');
+  if (ex.video_url) {
+    playerEl.innerHTML = '<iframe src="'+ex.video_url+'" width="100%" height="300" frameborder="0" allowfullscreen style="border-radius:6px"></iframe>';
+  } else {
+    playerEl.innerHTML = '<div style="background:#f8fafc;border:2px dashed #e2e8f0;border-radius:6px;height:200px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px">No video linked yet</div>';
+  }
+}
+
+function saveVideoLink() {
+  if (!_currentVideoExId) return;
+  var url = document.getElementById('video-url-input').value.trim();
+  var m = document.getElementById('video-save-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  fetch('/api/exercises/'+_currentVideoExId, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({video_url: url})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+    else {
+      m.className='mt ok'; m.textContent='Video saved!';
+      _allExercises = []; // clear cache
+      loadVideoLibrary();
+      showVideoDetail(_currentVideoExId);
+    }
+  });
+}
+
+function importVideos() {
+  var text = document.getElementById('video-links').value.trim();
+  if (!text) { alert('Paste at least one video link.'); return; }
+  var links = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  var m = document.getElementById('video-import-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Importing '+links.length+' videos — this may take a moment...';
+
+  fetch('/api/videos/import', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({links: links})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; return; }
+    var msg = '✓ Matched: '+d.matched.length+' · ';
+    msg += '? Unmatched: '+d.unmatched.length+' · ';
+    msg += '✗ Errors: '+d.errors.length;
+    m.className='mt ok'; m.textContent=msg;
+
+    var detail = '';
+    if (d.matched.length) {
+      detail += '\n\nMATCHED:\n'+d.matched.map(function(x){ return '  '+x.file+' → '+x.exercise+' ('+x.score+'%)'; }).join('\n');
+    }
+    if (d.unmatched.length) {
+      detail += '\n\nUNMATCHED (add manually):\n'+d.unmatched.map(function(x){ return '  '+x.file; }).join('\n');
+    }
+    if (detail) {
+      var pre = document.createElement('pre');
+      pre.style.cssText = 'font-size:10px;margin-top:8px;white-space:pre-wrap;color:#374151';
+      pre.textContent = detail;
+      m.appendChild(pre);
+    }
+    _allExercises = [];
+    loadVideoLibrary();
+  }).catch(function(e){ m.className='mt er'; m.textContent='Failed: '+e.message; });
+}
+
+// ============================================================
+// VIDEO IN WORKOUT BUILDER
+// ============================================================
+function getVideoForExercise(exerciseName) {
+  if (!exerciseName) return null;
+  // Strip prefix like "1A) "
+  var clean = exerciseName.replace(/^\d+[A-Za-z]\)\s*/, '').toLowerCase().trim();
+  for (var i = 0; i < _videoLibraryCache.length; i++) {
+    var e = _videoLibraryCache[i];
+    var eName = e.name.toLowerCase();
+    if (eName === clean) return e.video_url;
+    if (eName.includes(clean) || clean.includes(eName)) return e.video_url;
+    // Word overlap
+    var eWords = eName.split(/\s+/);
+    var cWords = clean.split(/\s+/);
+    var overlap = eWords.filter(function(w){ return cWords.includes(w) && w.length > 2; }).length;
+    if (overlap >= 2 || (overlap === 1 && Math.min(eWords.length,cWords.length) === 1)) return e.video_url;
+  }
+  return null;
+}
+
+// Preload exercise library for video matching when workout builder loads
+var _origFetchAthletes = fetchAthletes;
+function ensureExercisesLoaded(cb) {
+  if (_videoLibraryCache.length) { cb(); return; }
+  fetch('/api/exercises').then(function(r){return r.json();}).then(function(data){
+    _videoLibraryCache = data;
+    _allExercises = data;
+    cb();
+  });
+}
+
+
+function showVideoModal(url, name) {
+  document.getElementById('video-modal-title').textContent = name;
+  document.getElementById('video-modal-player').innerHTML = '<iframe src="'+url+'" width="100%" height="340" frameborder="0" allowfullscreen style="border-radius:6px"></iframe>';
+  document.getElementById('video-modal').style.display = 'block';
+  document.getElementById('video-modal-overlay').style.display = 'block';
+}
+function closeVideoModal() {
+  document.getElementById('video-modal').style.display = 'none';
+  document.getElementById('video-modal-overlay').style.display = 'none';
+  document.getElementById('video-modal-player').innerHTML = '';
+}
 
 ld();
 </script>
