@@ -143,10 +143,7 @@ tr:last-child td { border-bottom:none; }
             </select>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group"><label>Height (cm)</label><input type="number" id="af-ht" class="inp" placeholder="e.g. 185"></div>
-          <div class="form-group"><label>Weight (kg)</label><input type="number" id="af-wt" class="inp" placeholder="e.g. 92"></div>
-        </div>
+
         <div class="form-group" style="margin-bottom:12px"><label>Notes</label><input type="text" id="af-notes" class="inp" placeholder="Optional"></div>
         <div style="display:flex;gap:8px">
           <button class="btn" onclick="saveAthlete()">Save</button>
@@ -249,8 +246,8 @@ tr:last-child td { border-bottom:none; }
           <div class="form-group"><label>Distance (m)</label>
             <input type="number" id="load-dist" class="inp" placeholder="Optional">
           </div>
-          <div class="form-group"><label>Notes</label>
-            <input type="text" id="load-notes" class="inp" placeholder="Optional">
+          <div class="form-group"><label>Session Name</label>
+            <input type="text" id="load-notes" class="inp" placeholder="e.g. Morning Skate">
           </div>
         </div>
         <button class="btn" onclick="saveLoadRecord()">Log Session</button>
@@ -2524,7 +2521,7 @@ function showAthleteForm(id, name) {
   document.getElementById('af-delete-btn').style.display = id ? 'inline-block' : 'none';
   document.getElementById('af-result').style.display = 'none';
   // Clear form
-  ['af-first','af-last','af-num','af-ht','af-wt','af-notes'].forEach(function(i){ document.getElementById(i).value=''; });
+  ['af-first','af-last','af-num','af-notes'].forEach(function(i){ document.getElementById(i).value=''; });
   document.getElementById('af-pos').value = '';
   document.getElementById('af-status').value = 'Normal';
   document.getElementById('af-dob').value = '';
@@ -2554,8 +2551,6 @@ function saveAthlete() {
     jersey_number: parseInt(document.getElementById('af-num').value)||null,
     date_of_birth: document.getElementById('af-dob').value || null,
     load_status: document.getElementById('af-status').value,
-    height_cm: parseFloat(document.getElementById('af-ht').value)||null,
-    weight_kg: parseFloat(document.getElementById('af-wt').value)||null,
     notes: document.getElementById('af-notes').value || null,
   };
   var m = document.getElementById('af-result');
@@ -2638,7 +2633,7 @@ function saveLoadRecord() {
     duration_min: dur,
     session_load: rpe && dur ? rpe*dur : null,
     total_distance_m: parseInt(document.getElementById('load-dist').value)||null,
-    notes: document.getElementById('load-notes').value||null,
+    session_name: document.getElementById('load-notes').value||null,
   })}).then(function(r){return r.json();}).then(function(d){
     if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
     else {
