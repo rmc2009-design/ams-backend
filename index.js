@@ -1263,6 +1263,181 @@ app.get('/api/conditioning/workout-day', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ============================================================
+// ATHLETE MANAGEMENT
+// ============================================================
+
+app.post('/api/athletes', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('athletes').insert({
+      first_name: b.first_name,
+      last_name: b.last_name,
+      position: b.position || null,
+      sport: b.sport || 'Hockey',
+      jersey_number: b.jersey_number || null,
+      date_of_birth: b.date_of_birth || null,
+      height_cm: b.height_cm || null,
+      weight_kg: b.weight_kg || null,
+      load_status: b.load_status || 'Normal',
+      notes: b.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/athletes/:id', async function(req, res) {
+  try {
+    var b = req.body;
+    var updates = {};
+    ['first_name','last_name','position','sport','jersey_number','date_of_birth',
+     'height_cm','weight_kg','load_status','notes'].forEach(function(k) {
+      if (b[k] !== undefined) updates[k] = b[k];
+    });
+    var r = await supabase.from('athletes').update(updates).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/athletes/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('athletes').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/athletes/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('athletes').select('*').eq('id', req.params.id).single();
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ============================================================
+// LOAD RECORDS
+// ============================================================
+
+app.post('/api/loads', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('load_records').insert({
+      athlete_id: b.athlete_id,
+      session_date: b.session_date,
+      session_type: b.session_type || null,
+      rpe: b.rpe || null,
+      duration_min: b.duration_min || null,
+      session_load: b.rpe && b.duration_min ? b.rpe * b.duration_min : b.session_load || null,
+      total_distance_m: b.total_distance_m || null,
+      notes: b.notes || null,
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/loads', async function(req, res) {
+  try {
+    var q = supabase.from('load_records')
+      .select('*, athletes(first_name, last_name)')
+      .order('session_date', { ascending: false });
+    if (req.query.athlete_id) q = q.eq('athlete_id', req.query.athlete_id);
+    if (req.query.days) {
+      var cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - parseInt(req.query.days));
+      q = q.gte('session_date', cutoff.toISOString().split('T')[0]);
+    }
+    q = q.limit(200);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json(r.data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/loads/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('load_records').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ============================================================
+// FLAGS — CREATE + BULK RESOLVE
+// ============================================================
+
+app.post('/api/flags', async function(req, res) {
+  try {
+    var b = req.body;
+    var r = await supabase.from('athlete_flags').insert({
+      athlete_id: b.athlete_id,
+      message: b.message,
+      severity: b.severity || 'warning',
+      flag_type: b.flag_type || 'manual',
+    }).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/flags/resolve-all', async function(req, res) {
+  try {
+    var athleteId = req.body.athlete_id;
+    var q = supabase.from('athlete_flags').update({ resolved: true, resolved_at: new Date().toISOString() });
+    if (athleteId) q = q.eq('athlete_id', athleteId);
+    else q = q.eq('resolved', false);
+    var r = await q;
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ============================================================
+// PROGRAMS — DELETE + RENAME
+// ============================================================
+
+app.delete('/api/programs/:id', async function(req, res) {
+  try {
+    var progId = req.params.id;
+    // Get all days
+    var daysR = await supabase.from('program_days').select('id').eq('program_id', progId);
+    if (!daysR.error && daysR.data.length) {
+      for (var i = 0; i < daysR.data.length; i++) {
+        var blocksR = await supabase.from('workout_blocks').select('id').eq('day_id', daysR.data[i].id);
+        if (!blocksR.error && blocksR.data.length) {
+          for (var j = 0; j < blocksR.data.length; j++) {
+            var exsR = await supabase.from('workout_exercises').select('id').eq('block_id', blocksR.data[j].id);
+            if (!exsR.error && exsR.data.length) {
+              for (var k = 0; k < exsR.data.length; k++) {
+                await supabase.from('workout_progressions').delete().eq('workout_exercise_id', exsR.data[k].id);
+              }
+            }
+            await supabase.from('workout_exercises').delete().eq('block_id', blocksR.data[j].id);
+          }
+        }
+        await supabase.from('workout_blocks').delete().eq('day_id', daysR.data[i].id);
+      }
+    }
+    await supabase.from('program_days').delete().eq('program_id', progId);
+    await supabase.from('athlete_programs').delete().eq('program_id', progId);
+    var r = await supabase.from('programs').delete().eq('id', progId);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/programs/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('programs').update({ name: req.body.name }).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
