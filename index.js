@@ -1294,6 +1294,8 @@ app.post('/api/athletes', async function(req, res) {
       date_of_birth: b.date_of_birth || null,
       load_status: b.load_status || 'Normal',
       notes: b.notes || null,
+      height_cm: b.height_cm || null,
+      weight_kg: b.weight_kg || null,
     }).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
@@ -1305,7 +1307,7 @@ app.patch('/api/athletes/:id', async function(req, res) {
     var b = req.body;
     var updates = {};
     ['first_name','last_name','position','sport','jersey_number','date_of_birth',
-     'load_status','notes'].forEach(function(k) {
+     'load_status','notes','height_cm','weight_kg'].forEach(function(k) {
       if (b[k] !== undefined) updates[k] = b[k];
     });
     var r = await supabase.from('athletes').update(updates).eq('id', req.params.id).select();
@@ -1449,6 +1451,29 @@ app.patch('/api/programs/:id', async function(req, res) {
     if (r.error) throw r.error;
     res.json(r.data[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.get('/api/programs/dashboard', async function(req, res) {
+  try {
+    var r = await supabase.from('athlete_programs')
+      .select('athlete_id, program_id, programs(id,name,weeks,phase), athletes(first_name,last_name,position)')
+      .eq('active', true);
+    if (r.error) throw r.error;
+    var results = r.data.map(function(row) {
+      return {
+        athlete_id: row.athlete_id,
+        name: row.athletes ? row.athletes.first_name+' '+row.athletes.last_name : '',
+        position: row.athletes ? row.athletes.position : '',
+        program_name: row.programs ? row.programs.name : '',
+        program_id: row.program_id,
+        weeks: row.programs ? row.programs.weeks : null,
+        phase: row.programs ? row.programs.phase : null,
+      };
+    });
+    results.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    res.json(results);
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/exercises', async function(req, res) {
