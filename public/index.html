@@ -98,7 +98,10 @@ tr:last-child td { border-bottom:none; }
 <div class="wrap">
   <div class="pg on" id="pd">
     <div class="metrics" id="mg"><div class="em">Loading...</div></div>
-    <div class="card" style="margin-bottom:16px"><h3>Conditioning Status</h3><div id="cond-dash"><div class="em">Loading...</div></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="card"><h3>Workout Programs</h3><div id="workout-dash"><div class="em">Loading...</div></div></div>
+      <div class="card"><h3>Conditioning Programs</h3><div id="cond-dash"><div class="em">Loading...</div></div></div>
+    </div>
     <div class="two">
       <div class="card"><h3>Active Flags</h3><div id="df"><div class="em">Loading...</div></div></div>
       <div class="card"><h3>Recent Sessions</h3><div id="dl"><div class="em">Loading...</div></div></div>
@@ -144,6 +147,10 @@ tr:last-child td { border-bottom:none; }
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group"><label>Height (cm)</label><input type="number" id="af-ht" class="inp" placeholder="e.g. 185"></div>
+          <div class="form-group"><label>Weight (kg)</label><input type="number" id="af-wt" class="inp" placeholder="e.g. 92"></div>
+        </div>
         <div class="form-group" style="margin-bottom:12px"><label>Notes</label><input type="text" id="af-notes" class="inp" placeholder="Optional"></div>
         <div style="display:flex;gap:8px">
           <button class="btn" onclick="saveAthlete()">Save</button>
@@ -846,6 +853,7 @@ function ld(){
         else{var h='<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th></tr></thead><tbody>';for(var i=0;i<Math.min(lo.length,8);i++){var l=lo[i];var nm=l.athletes?l.athletes.first_name+' '+l.athletes.last_name:'Unknown';var rc=l.rpe>=9?'r':l.rpe>=7?'a':'g';h+='<tr><td>'+nm+'</td><td>'+l.session_date+'</td><td>'+(l.session_type||'-')+'</td><td>'+(l.rpe?bx('RPE '+l.rpe,rc):'-')+'</td></tr>';}dl.innerHTML=h+'</tbody></table>';}
         document.getElementById('upd').textContent='Updated '+new Date().toLocaleTimeString();
         loadCondDashboard();
+        loadWorkoutDashboard();
       });
     });
   });
@@ -2420,26 +2428,54 @@ function printCondProgram() {
 
 // Dashboard conditioning status
 function loadCondDashboard() {
-  fetch('/api/conditioning/dashboard').then(function(r){return r.json();}).then(function(data){
-    var el = document.getElementById('cond-dash');
-    if (!data.length) { el.innerHTML='<div style="font-size:12px;color:#94a3b8">No conditioning programs assigned yet.</div>'; return; }
-    var h = '<table><thead><tr><th>Athlete</th><th>Program</th><th>Mode</th><th>Week</th><th>Next Session</th><th>Sessions Logged</th></tr></thead><tbody>';
-    var modeIcons = {assault_bike:'💥',watt_bike:'⚡',ski_erg:'🎿',running:'🏃',slideboard:'↔',on_ice:'🏒',mixed:'🎯'};
-    data.forEach(function(a){
-      var pct = Math.round((a.current_week / a.total_weeks) * 100);
-      var bar = '<div style="background:#e2e8f0;border-radius:3px;height:4px;width:60px;display:inline-block;vertical-align:middle;margin-left:4px"><div style="background:#2563eb;height:4px;border-radius:3px;width:'+pct+'%"></div></div>';
-      h += '<tr>';
-      h += '<td style="font-weight:600">'+a.name+'<span style="font-size:10px;color:#64748b;margin-left:4px">'+(a.position||'')+'</span></td>';
-      h += '<td style="font-size:11px">'+a.program_name+'</td>';
-      h += '<td>'+(modeIcons[a.program_mode]||'')+'</td>';
-      h += '<td>'+a.current_week+'/'+a.total_weeks+bar+'</td>';
-      h += '<td style="font-size:10px;color:#374151">'+a.next_session+'</td>';
-      h += '<td style="text-align:center">'+(a.sessions_logged > 0 ? '<span style="color:#166534;font-weight:600">'+a.sessions_logged+'</span>' : '<span style="color:#94a3b8">0</span>')+'</td>';
-      h += '</tr>';
-    });
-    h += '</tbody></table>';
-    el.innerHTML = h;
-  });
+  var el = document.getElementById('cond-dash');
+  if (!el) return;
+  el.innerHTML = '<div class="em">Loading...</div>';
+  fetch('/api/conditioning/dashboard')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.length) { el.innerHTML='<div style="font-size:12px;color:#94a3b8">No conditioning programs assigned yet.</div>'; return; }
+      var modeIcons = {assault_bike:'💥',watt_bike:'⚡',ski_erg:'🎿',running:'🏃',slideboard:'↔',on_ice:'🏒',mixed:'🎯'};
+      var h = '<table><thead><tr><th>Athlete</th><th>Mode</th><th>Wk</th><th>Next Session A</th><th>Done</th></tr></thead><tbody>';
+      data.forEach(function(a){
+        var pct = Math.round((a.current_week / a.total_weeks) * 100);
+        var bar = '<div style="background:#e2e8f0;border-radius:3px;height:4px;width:40px;display:inline-block;vertical-align:middle;margin-left:3px"><div style="background:#2563eb;height:4px;border-radius:3px;width:'+pct+'%"></div></div>';
+        var sess = a.next_session || '—';
+        if (sess.length > 35) sess = sess.substring(0,35)+'…';
+        h += '<tr>';
+        h += '<td style="font-weight:600;font-size:12px">'+a.name+'</td>';
+        h += '<td>'+(modeIcons[a.program_mode]||'')+'</td>';
+        h += '<td style="font-size:11px">'+a.current_week+'/'+a.total_weeks+bar+'</td>';
+        h += '<td style="font-size:10px;color:#374151">'+sess+'</td>';
+        h += '<td style="text-align:center">'+(a.sessions_logged > 0 ? '<span style="color:#166534;font-weight:600">'+a.sessions_logged+'</span>' : '<span style="color:#94a3b8">0</span>')+'</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      el.innerHTML = h;
+    })
+    .catch(function(e){ el.innerHTML='<div style="font-size:12px;color:#94a3b8">Could not load conditioning data.</div>'; });
+}
+
+function loadWorkoutDashboard() {
+  var el = document.getElementById('workout-dash');
+  if (!el) return;
+  fetch('/api/programs/dashboard')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.length) { el.innerHTML='<div style="font-size:12px;color:#94a3b8">No programs assigned yet.</div>'; return; }
+      var h = '<table><thead><tr><th>Athlete</th><th>Pos</th><th>Program</th><th>Phase</th></tr></thead><tbody>';
+      data.forEach(function(a){
+        h += '<tr>';
+        h += '<td style="font-weight:600;font-size:12px">'+a.name+'</td>';
+        h += '<td style="font-size:11px;color:#64748b">'+(a.position||'—')+'</td>';
+        h += '<td style="font-size:11px">'+a.program_name+'</td>';
+        h += '<td style="font-size:10px;color:#64748b">'+(a.phase||'—')+'</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      el.innerHTML = h;
+    })
+    .catch(function(){ el.innerHTML='<div style="font-size:12px;color:#94a3b8">Could not load program data.</div>'; });
 }
 
 // Workout builder conditioning day integration
@@ -2521,7 +2557,7 @@ function showAthleteForm(id, name) {
   document.getElementById('af-delete-btn').style.display = id ? 'inline-block' : 'none';
   document.getElementById('af-result').style.display = 'none';
   // Clear form
-  ['af-first','af-last','af-num','af-notes'].forEach(function(i){ document.getElementById(i).value=''; });
+  ['af-first','af-last','af-num','af-ht','af-wt','af-notes'].forEach(function(i){ document.getElementById(i).value=''; });
   document.getElementById('af-pos').value = '';
   document.getElementById('af-status').value = 'Normal';
   document.getElementById('af-dob').value = '';
@@ -2537,6 +2573,8 @@ function showAthleteForm(id, name) {
       document.getElementById('af-ht').value = a.height_cm || '';
       document.getElementById('af-wt').value = a.weight_kg || '';
       document.getElementById('af-notes').value = a.notes || '';
+      document.getElementById('af-ht').value = a.height_cm || '';
+      document.getElementById('af-wt').value = a.weight_kg || '';
     });
   }
 }
@@ -2552,6 +2590,8 @@ function saveAthlete() {
     date_of_birth: document.getElementById('af-dob').value || null,
     load_status: document.getElementById('af-status').value,
     notes: document.getElementById('af-notes').value || null,
+    height_cm: parseFloat(document.getElementById('af-ht').value)||null,
+    weight_kg: parseFloat(document.getElementById('af-wt').value)||null,
   };
   var m = document.getElementById('af-result');
   m.style.display='block'; m.className='mt'; m.textContent='Saving...';
