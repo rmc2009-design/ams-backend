@@ -480,6 +480,23 @@ tr:last-child td { border-bottom:none; }
       <div id="im" class="mt"></div>
     </div>
   </div>
+  <!-- Global Protocol Picker Modal -->
+  <div id="proto-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:500px;max-height:70vh;overflow-y:auto;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="font-size:14px">Select Protocol</h3>
+      <button onclick="closeProtoModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">×</button>
+    </div>
+    <select id="proto-modal-filter" class="sel" style="margin-bottom:8px" onchange="renderProtoList()">
+      <option value="">All categories</option>
+      <option value="on_ice">On-Ice</option>
+      <option value="assault_bike">Assault Bike</option>
+      <option value="off_ice">Off-Ice</option>
+      <option value="circuit">Circuit</option>
+    </select>
+    <input type="text" id="proto-modal-search" class="inp" placeholder="Search protocols..." oninput="renderProtoList()" style="margin-bottom:8px">
+    <div id="proto-modal-list"><div class="em">Loading...</div></div>
+  </div>
+  <div id="proto-modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="closeProtoModal()"></div>
 </div>
 <script>
 var allAthletes = [];
@@ -1448,23 +1465,7 @@ function buildWeeklyPrescription(vift, mapW) {
   });
   h += '</tbody></table></div>';
 
-  // Protocol picker modal
-  h += '<div id="proto-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:500px;max-height:70vh;overflow-y:auto;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">';
-  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
-  h += '<h3 style="font-size:14px">Select Protocol</h3>';
-  h += '<button onclick="closeProtoModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b">×</button>';
-  h += '</div>';
-  h += '<select id="proto-modal-filter" class="sel" style="margin-bottom:8px" onchange="renderProtoList()">';
-  h += '<option value="">All categories</option>';
-  h += '<option value="on_ice">On-Ice</option>';
-  h += '<option value="assault_bike">Assault Bike</option>';
-  h += '<option value="off_ice">Off-Ice</option>';
-  h += '<option value="circuit">Circuit</option>';
-  h += '</select>';
-  h += '<input type="text" id="proto-modal-search" class="inp" placeholder="Search protocols..." oninput="renderProtoList()" style="margin-bottom:8px">';
-  h += '<div id="proto-modal-list"><div class="em">Loading...</div></div>';
-  h += '</div>';
-  h += '<div id="proto-modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="closeProtoModal()"></div>';
+
 
   return h;
 }
