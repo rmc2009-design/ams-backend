@@ -104,9 +104,160 @@ tr:last-child td { border-bottom:none; }
       <div class="card"><h3>Recent Sessions</h3><div id="dl"><div class="em">Loading...</div></div></div>
     </div>
   </div>
-  <div class="pg" id="pr"><div class="ag" id="rg"><div class="em">Loading...</div></div></div>
-  <div class="pg" id="pf"><div class="card"><h3>Unresolved Flags</h3><div id="fl"><div class="em">Loading...</div></div></div></div>
-  <div class="pg" id="pl"><div class="card"><h3>Load Records - Last 7 Days</h3><div id="lc"><div class="em">Loading...</div></div></div></div>
+  <div class="pg" id="pr">
+    <div class="two">
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin-bottom:0">Squad Roster</h3>
+            <button class="btn" onclick="showAthleteForm(null)">+ Add Athlete</button>
+          </div>
+          <input type="text" id="roster-search" class="inp" placeholder="Search by name or position..." oninput="filterRoster()" style="margin-bottom:12px">
+          <div class="ag" id="rg"><div class="em">Loading...</div></div>
+        </div>
+      </div>
+      <div class="card" id="athlete-form-card" style="display:none">
+        <h3 id="athlete-form-title">New Athlete</h3>
+        <div class="form-row">
+          <div class="form-group"><label>First Name</label><input type="text" id="af-first" class="inp"></div>
+          <div class="form-group"><label>Last Name</label><input type="text" id="af-last" class="inp"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Position</label>
+            <select id="af-pos" class="sel" style="margin-bottom:0">
+              <option value="">Select...</option>
+              <option value="C">C</option><option value="LW">LW</option><option value="RW">RW</option>
+              <option value="LD">LD</option><option value="RD">RD</option><option value="G">G</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Jersey #</label><input type="number" id="af-num" class="inp" placeholder="e.g. 71"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Date of Birth</label><input type="date" id="af-dob" class="inp"></div>
+          <div class="form-group"><label>Status</label>
+            <select id="af-status" class="sel" style="margin-bottom:0">
+              <option value="Normal">Normal</option>
+              <option value="High">High Load</option>
+              <option value="Low">Low Load</option>
+              <option value="Injured">Injured</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Height (cm)</label><input type="number" id="af-ht" class="inp" placeholder="e.g. 185"></div>
+          <div class="form-group"><label>Weight (kg)</label><input type="number" id="af-wt" class="inp" placeholder="e.g. 92"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px"><label>Notes</label><input type="text" id="af-notes" class="inp" placeholder="Optional"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="saveAthlete()">Save</button>
+          <button onclick="document.getElementById('athlete-form-card').style.display='none'" style="border:1px solid #e2e8f0;background:white;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px">Cancel</button>
+          <button id="af-delete-btn" onclick="deleteAthlete()" style="display:none;border:none;background:#fee2e2;color:#991b1b;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto">Delete Athlete</button>
+        </div>
+        <div id="af-result" class="mt"></div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" id="pf">
+    <div class="two">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin-bottom:0">Active Flags</h3>
+          <button onclick="resolveAllFlags()" style="border:1px solid #e2e8f0;background:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Resolve All</button>
+        </div>
+        <div id="fl"><div class="em">Loading...</div></div>
+      </div>
+      <div class="card">
+        <h3>Create Flag</h3>
+        <div class="form-group" style="margin-bottom:12px"><label>Athlete</label>
+          <select id="flag-athlete" class="sel" style="margin-bottom:0"><option value="">Select athlete...</option></select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px"><label>Message</label>
+          <input type="text" id="flag-msg" class="inp" placeholder="e.g. Missed 3 sessions this week">
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Severity</label>
+            <select id="flag-sev" class="sel" style="margin-bottom:0">
+              <option value="info">Info</option>
+              <option value="warning" selected>Warning</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Type</label>
+            <select id="flag-type" class="sel" style="margin-bottom:0">
+              <option value="manual">Manual</option>
+              <option value="load">Load</option>
+              <option value="injury">Injury</option>
+              <option value="conditioning">Conditioning</option>
+              <option value="asymmetry">Asymmetry</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn" onclick="createFlag()" style="margin-top:12px">Create Flag</button>
+        <div id="flag-result" class="mt"></div>
+      </div>
+    </div>
+  </div>
+  <div class="pg" id="pl">
+    <div class="two">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin-bottom:0">Load Records</h3>
+          <select id="load-days" class="sel" style="margin-bottom:0" onchange="ll()">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+        </div>
+        <div id="lc"><div class="em">Loading...</div></div>
+      </div>
+      <div class="card">
+        <h3>Log Session</h3>
+        <div class="form-row">
+          <div class="form-group"><label>Athlete</label>
+            <select id="load-athlete" class="sel" style="margin-bottom:0"><option value="">Select athlete...</option></select>
+          </div>
+          <div class="form-group"><label>Date</label>
+            <input type="date" id="load-date" class="inp">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Session Type</label>
+            <select id="load-type" class="sel" style="margin-bottom:0">
+              <option value="On-Ice Practice">On-Ice Practice</option>
+              <option value="On-Ice Game">On-Ice Game</option>
+              <option value="Strength">Strength</option>
+              <option value="Conditioning">Conditioning</option>
+              <option value="Skating">Skating</option>
+              <option value="Recovery">Recovery</option>
+              <option value="Off-Ice">Off-Ice</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group"><label>RPE (1–10)</label>
+            <input type="number" id="load-rpe" class="inp" min="1" max="10" placeholder="e.g. 7" oninput="calcLoad()">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Duration (min)</label>
+            <input type="number" id="load-dur" class="inp" placeholder="e.g. 75" oninput="calcLoad()">
+          </div>
+          <div class="form-group"><label>Session Load (AU)</label>
+            <input type="number" id="load-au" class="inp" placeholder="RPE × Duration" readonly style="background:#f8fafc">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Distance (m)</label>
+            <input type="number" id="load-dist" class="inp" placeholder="Optional">
+          </div>
+          <div class="form-group"><label>Notes</label>
+            <input type="text" id="load-notes" class="inp" placeholder="Optional">
+          </div>
+        </div>
+        <button class="btn" onclick="saveLoadRecord()">Log Session</button>
+        <div id="load-result" class="mt"></div>
+      </div>
+    </div>
+  </div>
   <div class="pg" id="ps"><div class="card"><h3>1080 Motion - Last 12 Months</h3><div id="sc"><div class="em">Loading...</div></div></div></div>
   <div class="pg" id="pan">
     <div class="card"><h3>Split Squat Asymmetry</h3>
@@ -220,7 +371,9 @@ tr:last-child td { border-bottom:none; }
             <select id="week-select" class="sel" style="margin-bottom:0" onchange="reloadWeek()">
               <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
             </select>
+            <button onclick="renameProgram()" style="border:1px solid #e2e8f0;background:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Rename</button>
             <button onclick="showCopyProgram()" style="border:1px solid #e2e8f0;background:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Copy</button>
+            <button onclick="deleteProgram()" style="border:none;background:#fee2e2;color:#991b1b;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Delete</button>
             <button onclick="printProgram()" style="border:1px solid #e2e8f0;background:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">Print</button>
           </div>
         </div>
@@ -651,8 +804,8 @@ function sp(n,btn){
   document.getElementById('p'+n).classList.add('on');
   btn.classList.add('on');
   if(n==='r')lr();
-  if(n==='f')lf();
-  if(n==='l')ll();
+  if(n==='f'){lf();fetchAthletes(function(){populateSel('flag-athlete');});}
+  if(n==='l'){ll();fetchAthletes(function(){populateSel('load-athlete');document.getElementById('load-date').value=new Date().toISOString().split('T')[0];});}
   if(n==='s')ls();
   if(n==='an'){fetchAthletes(function(){populateSel('an-athlete');la();});}
   if(n==='as'){fetchAthletes(function(){populateSel('as-athlete');document.getElementById('as-date').value=new Date().toISOString().split('T')[0];});}
@@ -681,7 +834,7 @@ function buildPathwayBox(phase,track,pathway){
 function ld(){
   fetchAthletes(function(at){
     fetch('/api/flags').then(function(r){return r.json();}).then(function(fl){
-      fetch('/api/loads/recent').then(function(r){return r.json();}).then(function(lo){
+      fetch('/api/loads?days=7').then(function(r){return r.json();}).then(function(lo){
         var hi=0,inj=0,cr=0;
         for(var i=0;i<at.length;i++){if(at[i].load_status==='High')hi++;if(at[i].load_status==='Injured')inj++;}
         for(var i=0;i<fl.length;i++){if(fl[i].severity==='critical')cr++;}
@@ -723,11 +876,12 @@ function lf(){
 function rf(id){fetch('/api/flags/'+id+'/resolve',{method:'PATCH'}).then(function(){var e=document.getElementById('fg'+id);if(e)e.style.display='none';});}
 
 function ll(){
-  fetch('/api/loads/recent').then(function(r){return r.json();}).then(function(data){
+  var days = document.getElementById('load-days') ? document.getElementById('load-days').value : 7;
+  fetch('/api/loads?days='+days).then(function(r){return r.json();}).then(function(data){
     var el=document.getElementById('lc');
-    if(!data.length){el.innerHTML='<div class="em">No load records in the last 7 days.</div>';return;}
-    var h='<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th><th>Load</th><th>Distance</th></tr></thead><tbody>';
-    for(var i=0;i<data.length;i++){var l=data[i];var nm=l.athletes?l.athletes.first_name+' '+l.athletes.last_name:'Unknown';var rc=l.rpe>=9?'r':l.rpe>=7?'a':'g';h+='<tr><td>'+nm+'</td><td>'+l.session_date+'</td><td>'+(l.session_type||'-')+'</td><td>'+(l.rpe?bx('RPE '+parseFloat(l.rpe).toFixed(1),rc):'-')+'</td><td>'+(l.session_load?Math.round(l.session_load)+' AU':'-')+'</td><td>'+(l.total_distance_m?Math.round(l.total_distance_m)+' m':'-')+'</td></tr>';}
+    if(!data.length){el.innerHTML='<div class="em">No load records.</div>';return;}
+    var h='<table><thead><tr><th>Athlete</th><th>Date</th><th>Type</th><th>RPE</th><th>Load</th><th>Distance</th><th></th></tr></thead><tbody>';
+    for(var i=0;i<data.length;i++){var l=data[i];var nm=l.athletes?l.athletes.first_name+' '+l.athletes.last_name:'Unknown';var rc=l.rpe>=9?'r':l.rpe>=7?'a':'g';h+='<tr><td>'+nm+'</td><td>'+l.session_date+'</td><td>'+(l.session_type||'-')+'</td><td>'+(l.rpe?bx('RPE '+parseFloat(l.rpe).toFixed(1),rc):'-')+'</td><td>'+(l.session_load?Math.round(l.session_load)+' AU':'-')+'</td><td>'+(l.total_distance_m?Math.round(l.total_distance_m)+' m':'-')+'</td><td><button data-lid="'+l.id+'" onclick="deleteLoad(this.dataset.lid)" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:13px">×</button></td></tr>';}
     el.innerHTML=h+'</tbody></table>';
   });
 }
@@ -2316,6 +2470,218 @@ function loadConditioningDay(athleteId, weekNum, containerEl) {
       h += '</div>';
       containerEl.innerHTML = h;
     });
+}
+
+
+// ============================================================
+// ATHLETE MANAGEMENT
+// ============================================================
+var _editingAthleteId = null;
+var _allAthletesCache = [];
+
+function lr(){
+  fetch('/api/athletes').then(function(r){return r.json();}).then(function(at){
+    _allAthletesCache = at;
+    renderRoster(at);
+  });
+}
+
+function renderRoster(at){
+  var el=document.getElementById('rg');
+  if(!at.length){el.innerHTML='<div class="em">No athletes.</div>';return;}
+  var h='';
+  for(var i=0;i<at.length;i++){
+    var a=at[i];var ini=(a.first_name[0]+a.last_name[0]).toUpperCase();
+    var statusColor = a.load_status==='High'?'#fee2e2':a.load_status==='Injured'?'#fef3c7':a.load_status==='Low'?'#f0fdf4':'white';
+    h+='<div class="ac" style="background:'+statusColor+';cursor:pointer" data-aid="'+a.id+'" data-aname="'+a.first_name+'" onclick="showAthleteForm(this.dataset.aid,this.dataset.aname)">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:start">';
+    h+='<div class="av">'+ini+'</div>';
+    h+='<span style="font-size:10px;color:#64748b">'+(a.jersey_number?'#'+a.jersey_number:'')+'</span>';
+    h+='</div>';
+    h+='<div style="font-weight:600;font-size:14px">'+a.first_name+' '+a.last_name+'</div>';
+    h+='<div style="font-size:12px;color:#64748b">'+(a.position||'')+(a.sport?' · '+a.sport:'')+'</div>';
+    h+='<div style="margin-top:6px">'+lb(a.load_status)+'</div>';
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
+
+function filterRoster(){
+  var q = document.getElementById('roster-search').value.toLowerCase();
+  if (!q) { renderRoster(_allAthletesCache); return; }
+  var filtered = _allAthletesCache.filter(function(a){
+    return (a.first_name+' '+a.last_name).toLowerCase().includes(q) ||
+      (a.position||'').toLowerCase().includes(q) ||
+      (a.jersey_number?String(a.jersey_number):'').includes(q);
+  });
+  renderRoster(filtered);
+}
+
+function showAthleteForm(id, name) {
+  _editingAthleteId = id;
+  document.getElementById('athlete-form-card').style.display = 'block';
+  document.getElementById('athlete-form-title').textContent = id ? 'Edit — '+(name||'Athlete') : 'New Athlete';
+  document.getElementById('af-delete-btn').style.display = id ? 'inline-block' : 'none';
+  document.getElementById('af-result').style.display = 'none';
+  // Clear form
+  ['af-first','af-last','af-num','af-ht','af-wt','af-notes'].forEach(function(i){ document.getElementById(i).value=''; });
+  document.getElementById('af-pos').value = '';
+  document.getElementById('af-status').value = 'Normal';
+  document.getElementById('af-dob').value = '';
+
+  if (id) {
+    fetch('/api/athletes/'+id).then(function(r){return r.json();}).then(function(a){
+      document.getElementById('af-first').value = a.first_name || '';
+      document.getElementById('af-last').value = a.last_name || '';
+      document.getElementById('af-pos').value = a.position || '';
+      document.getElementById('af-num').value = a.jersey_number || '';
+      document.getElementById('af-dob').value = a.date_of_birth || '';
+      document.getElementById('af-status').value = a.load_status || 'Normal';
+      document.getElementById('af-ht').value = a.height_cm || '';
+      document.getElementById('af-wt').value = a.weight_kg || '';
+      document.getElementById('af-notes').value = a.notes || '';
+    });
+  }
+}
+
+function saveAthlete() {
+  var first = document.getElementById('af-first').value.trim();
+  var last = document.getElementById('af-last').value.trim();
+  if (!first || !last) { alert('Enter first and last name.'); return; }
+  var payload = {
+    first_name: first, last_name: last,
+    position: document.getElementById('af-pos').value || null,
+    jersey_number: parseInt(document.getElementById('af-num').value)||null,
+    date_of_birth: document.getElementById('af-dob').value || null,
+    load_status: document.getElementById('af-status').value,
+    height_cm: parseFloat(document.getElementById('af-ht').value)||null,
+    weight_kg: parseFloat(document.getElementById('af-wt').value)||null,
+    notes: document.getElementById('af-notes').value || null,
+  };
+  var m = document.getElementById('af-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  var url = _editingAthleteId ? '/api/athletes/'+_editingAthleteId : '/api/athletes';
+  var method = _editingAthleteId ? 'PATCH' : 'POST';
+  fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+      else {
+        m.className='mt ok'; m.textContent=_editingAthleteId?'Updated!':'Athlete added!';
+        allAthletes = []; // clear cache
+        lr();
+        if (!_editingAthleteId) {
+          setTimeout(function(){ document.getElementById('athlete-form-card').style.display='none'; }, 1000);
+        }
+      }
+    });
+}
+
+function deleteAthlete() {
+  if (!_editingAthleteId) return;
+  if (!confirm('Delete this athlete? All their programs, assessments, and data will be permanently removed.')) return;
+  fetch('/api/athletes/'+_editingAthleteId, {method:'DELETE'})
+    .then(function(r){return r.json();})
+    .then(function(){
+      document.getElementById('athlete-form-card').style.display='none';
+      allAthletes = [];
+      lr();
+    });
+}
+
+// ============================================================
+// FLAGS
+// ============================================================
+function createFlag() {
+  var aid = document.getElementById('flag-athlete').value;
+  var msg = document.getElementById('flag-msg').value.trim();
+  if (!aid || !msg) { alert('Select an athlete and enter a message.'); return; }
+  var m = document.getElementById('flag-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  fetch('/api/flags', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+    athlete_id: aid, message: msg,
+    severity: document.getElementById('flag-sev').value,
+    flag_type: document.getElementById('flag-type').value,
+  })}).then(function(r){return r.json();}).then(function(d){
+    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+    else { m.className='mt ok'; m.textContent='Flag created!'; document.getElementById('flag-msg').value=''; lf(); }
+  });
+}
+
+function resolveAllFlags() {
+  if (!confirm('Resolve all active flags?')) return;
+  fetch('/api/flags/resolve-all', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})})
+    .then(function(){lf();});
+}
+
+// ============================================================
+// LOAD RECORDS
+// ============================================================
+function calcLoad() {
+  var rpe = parseFloat(document.getElementById('load-rpe').value)||0;
+  var dur = parseFloat(document.getElementById('load-dur').value)||0;
+  if (rpe && dur) document.getElementById('load-au').value = Math.round(rpe * dur);
+}
+
+function saveLoadRecord() {
+  var aid = document.getElementById('load-athlete').value;
+  if (!aid) { alert('Select an athlete.'); return; }
+  var rpe = parseInt(document.getElementById('load-rpe').value)||null;
+  var dur = parseInt(document.getElementById('load-dur').value)||null;
+  var m = document.getElementById('load-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  fetch('/api/loads', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+    athlete_id: aid,
+    session_date: document.getElementById('load-date').value,
+    session_type: document.getElementById('load-type').value,
+    rpe: rpe,
+    duration_min: dur,
+    session_load: rpe && dur ? rpe*dur : null,
+    total_distance_m: parseInt(document.getElementById('load-dist').value)||null,
+    notes: document.getElementById('load-notes').value||null,
+  })}).then(function(r){return r.json();}).then(function(d){
+    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+    else {
+      m.className='mt ok'; m.textContent='Session logged!';
+      ['load-rpe','load-dur','load-au','load-dist','load-notes'].forEach(function(i){ document.getElementById(i).value=''; });
+      ll();
+    }
+  });
+}
+
+function deleteLoad(id) {
+  if (!confirm('Delete this load record?')) return;
+  fetch('/api/loads/'+id, {method:'DELETE'}).then(function(){ll();});
+}
+
+// ============================================================
+// PROGRAM MANAGEMENT — DELETE + RENAME
+// ============================================================
+function deleteProgram() {
+  if (!currentProgramId) return;
+  if (!confirm('Delete this program? All exercises and progressions will be permanently removed.')) return;
+  fetch('/api/programs/'+currentProgramId, {method:'DELETE'})
+    .then(function(r){return r.json();})
+    .then(function(){
+      document.getElementById('program-detail').style.display='none';
+      currentProgramId = null;
+      loadPrograms();
+    });
+}
+
+function renameProgram() {
+  if (!currentProgramId) return;
+  var current = document.getElementById('program-title').textContent;
+  var name = prompt('Rename program:', current);
+  if (!name || name === current) return;
+  fetch('/api/programs/'+currentProgramId, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (!d.error) {
+      document.getElementById('program-title').textContent = name;
+      loadPrograms();
+    }
+  });
 }
 
 
