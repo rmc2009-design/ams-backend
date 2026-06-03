@@ -767,9 +767,12 @@ tr:last-child td { border-bottom:none; }
       <div>
         <div class="card">
           <h3>Bulk Import Videos</h3>
-          <div style="font-size:12px;color:#374151;margin-bottom:12px">Paste your Google Drive share links below — one per line. The system will automatically match each video to an exercise by filename.</div>
-          <textarea id="video-links" style="width:100%;height:180px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:11px;font-family:monospace" placeholder="https://drive.google.com/file/d/ABC123/view?usp=sharing&#10;https://drive.google.com/file/d/DEF456/view?usp=sharing&#10;..."></textarea>
-          <button class="btn" onclick="importVideos()" style="margin-top:8px">Import Videos</button>
+          <div style="font-size:12px;color:#374151;margin-bottom:8px">Paste two columns — <strong>exercise name</strong> and <strong>Google Drive link</strong> — one pair per line, separated by a tab or comma. You can copy directly from a Google Sheet with two columns.</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;font-family:monospace;background:#f8fafc;padding:6px;border-radius:4px">FFE Split Squat	https://drive.google.com/file/d/ABC.../view<br>GHR	https://drive.google.com/file/d/DEF.../view</div>
+          <textarea id="video-links" style="width:100%;height:200px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:11px;font-family:monospace" placeholder="Exercise Name TAB https://drive.google.com/file/d/.../view&#10;Exercise Name TAB https://drive.google.com/file/d/.../view"></textarea>
+          <div style="font-size:11px;color:#64748b;margin:6px 0">Or paste just links (one per line) with exercise names in the Name column next to each:</div>
+          <button class="btn" onclick="importVideos()" style="margin-top:4px">Import & Match</button>
+          <button onclick="showManualPasteHelp()" style="border:1px solid #e2e8f0;background:white;padding:9px 14px;border-radius:6px;cursor:pointer;font-size:12px;margin-left:8px">How to export from Google Drive</button>
           <div id="video-import-result" class="mt"></div>
         </div>
         <div class="card" style="margin-top:0">
@@ -2861,37 +2864,63 @@ function saveVideoLink() {
 
 function importVideos() {
   var text = document.getElementById('video-links').value.trim();
-  if (!text) { alert('Paste at least one video link.'); return; }
-  var links = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  if (!text) { alert('Paste exercise name + link pairs, one per line.'); return; }
+  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  var pairs = [];
+
+  lines.forEach(function(line) {
+    // Try tab-separated, comma-separated, or just a URL
+    var parts = line.split('\t');
+    if (parts.length >= 2) {
+      pairs.push({ name: parts[0].trim(), url: parts[parts.length-1].trim() });
+    } else {
+      // Try comma
+      var commaIdx = line.indexOf(',http');
+      if (commaIdx > 0) {
+        pairs.push({ name: line.substring(0,commaIdx).trim(), url: line.substring(commaIdx+1).trim() });
+      } else if (line.includes('drive.google.com')) {
+        // Just a URL — no name provided, will try to fuzzy match
+        pairs.push({ name: null, url: line.trim() });
+      }
+    }
+  });
+
+  if (!pairs.length) { alert('Could not parse any pairs. Make sure each line has: Exercise Name TAB Link'); return; }
+
   var m = document.getElementById('video-import-result');
-  m.style.display='block'; m.className='mt'; m.textContent='Importing '+links.length+' videos — this may take a moment...';
+  m.style.display='block'; m.className='mt'; m.textContent='Matching '+pairs.length+' videos...';
+  m.innerHTML = '<div>Matching '+pairs.length+' videos...</div>';
+
+  // Send names + links to backend for matching
+  var links = pairs.map(function(p){ return p.url; });
+  var names = pairs.map(function(p){ return p.name; });
 
   fetch('/api/videos/import', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({links: links})
+    body:JSON.stringify({links: links, names: names})
   }).then(function(r){return r.json();}).then(function(d){
-    if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; return; }
-    var msg = '✓ Matched: '+d.matched.length+' · ';
-    msg += '? Unmatched: '+d.unmatched.length+' · ';
-    msg += '✗ Errors: '+d.errors.length;
-    m.className='mt ok'; m.textContent=msg;
-
-    var detail = '';
+    if (d.error) { m.className='mt er'; m.innerHTML='Error: '+d.error; return; }
+    m.className='mt ok';
+    var html = '<strong>✓ Matched: '+d.matched.length+'</strong> · <strong>? Unmatched: '+d.unmatched.length+'</strong> · ✗ Errors: '+d.errors.length;
     if (d.matched.length) {
-      detail += '\n\nMATCHED:\n'+d.matched.map(function(x){ return '  '+x.file+' → '+x.exercise+' ('+x.score+'%)'; }).join('\n');
+      html += '<div style="margin-top:8px;max-height:150px;overflow-y:auto;font-size:10px">';
+      d.matched.forEach(function(x){ html += '<div style="color:#166534">✓ '+x.file+' → '+x.exercise+' ('+x.score+'%)</div>'; });
+      html += '</div>';
     }
     if (d.unmatched.length) {
-      detail += '\n\nUNMATCHED (add manually):\n'+d.unmatched.map(function(x){ return '  '+x.file; }).join('\n');
+      html += '<div style="margin-top:8px;font-size:11px;font-weight:600;color:#92400e">Unmatched — add manually in the library below:</div>';
+      html += '<div style="max-height:100px;overflow-y:auto;font-size:10px">';
+      d.unmatched.forEach(function(x){ html += '<div style="color:#92400e">? '+x.file+'</div>'; });
+      html += '</div>';
     }
-    if (detail) {
-      var pre = document.createElement('pre');
-      pre.style.cssText = 'font-size:10px;margin-top:8px;white-space:pre-wrap;color:#374151';
-      pre.textContent = detail;
-      m.appendChild(pre);
-    }
+    m.innerHTML = html;
     _allExercises = [];
     loadVideoLibrary();
-  }).catch(function(e){ m.className='mt er'; m.textContent='Failed: '+e.message; });
+  }).catch(function(e){ m.className='mt er'; m.innerHTML='Failed: '+e.message; });
+}
+
+function showManualPasteHelp() {
+  alert('To export from Google Drive:\n\n1. Open your Exercise Videos folder in Google Drive\n2. Create a Google Sheet in that folder\n3. In column A: exercise names (matching your AMS exercises)\n4. In column B: paste the video share links\n5. Download as CSV or copy-paste here\n\nAlternatively:\n- Select all videos in Drive\n- Right-click → Get link → copy each link\n- Paste here with the exercise name before each link, separated by a TAB');
 }
 
 // ============================================================
