@@ -91,6 +91,7 @@ tr:last-child td { border-bottom:none; }
   <button onclick="sp('w',this)">Workouts</button>
   <button onclick="sp('c',this)">Conditioning</button>
   <button onclick="sp('cp',this)">Cond. Programs</button>
+  <button onclick="sp('pl',this)">Proto Library</button>
   <button onclick="sp('t',this)">Templates</button>
   <button onclick="sp('i',this)">Import</button>
 </div>
@@ -400,7 +401,8 @@ tr:last-child td { border-bottom:none; }
             <h3 id="cp-detail-title" style="margin-bottom:0"></h3>
             <div style="display:flex;gap:6px">
               <button id="cp-mode-badge" style="border:1px solid #e2e8f0;background:#f8fafc;padding:4px 10px;border-radius:20px;font-size:11px;cursor:default"></button>
-              <button onclick="showCopyCondProgram()" style="border:1px solid #e2e8f0;background:white;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">Copy</button>
+              <button onclick="autoFillCondProgram()" style="border:1px solid #22c55e;background:#f0fdf4;color:#166534;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">⚡ Auto-fill</button>
+            <button onclick="showCopyCondProgram()" style="border:1px solid #e2e8f0;background:white;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">Copy</button>
               <button onclick="deleteCondProgram()" style="border:none;background:#fee2e2;color:#991b1b;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">Delete</button>
             </div>
           </div>
@@ -480,6 +482,63 @@ tr:last-child td { border-bottom:none; }
       <div id="im" class="mt"></div>
     </div>
   </div>
+  <div class="pg" id="ppl">
+    <div class="two">
+      <div>
+        <div class="card">
+          <h3>Protocol Library</h3>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <select id="pl-filter" class="sel" style="margin-bottom:0;flex:1" onchange="loadProtoLibrary()">
+              <option value="">All categories</option>
+              <option value="on_ice">On-Ice</option>
+              <option value="assault_bike">Assault Bike</option>
+              <option value="watt_bike">Watt Bike</option>
+              <option value="ski_erg">Ski Erg</option>
+              <option value="running">Running</option>
+              <option value="slideboard">Slideboard</option>
+              <option value="off_ice">Off-Ice</option>
+              <option value="circuit">Circuit</option>
+              <option value="mixed">Mixed</option>
+            </select>
+            <button class="btn" onclick="showNewProtoForm()">+ New Protocol</button>
+          </div>
+          <div id="pl-list"><div class="em">Loading...</div></div>
+        </div>
+      </div>
+      <div class="card" id="pl-form" style="display:none">
+        <h3 id="pl-form-title">New Protocol</h3>
+        <div class="form-row">
+          <div class="form-group"><label>Name</label><input type="text" id="pl-name" class="inp" placeholder="e.g. Assault Bike 12 cal × 10 rounds"></div>
+          <div class="form-group"><label>Category</label>
+            <select id="pl-cat" class="sel" style="margin-bottom:0">
+              <option value="assault_bike">Assault Bike</option>
+              <option value="watt_bike">Watt Bike</option>
+              <option value="ski_erg">Ski Erg</option>
+              <option value="running">Running</option>
+              <option value="slideboard">Slideboard</option>
+              <option value="on_ice">On-Ice</option>
+              <option value="off_ice">Off-Ice</option>
+              <option value="circuit">Circuit</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Format</label><input type="text" id="pl-format" class="inp" placeholder="e.g. 30s work / 30s rest"></div>
+          <div class="form-group"><label>Intensity</label><input type="text" id="pl-intensity" class="inp" placeholder="e.g. 100% VIFT or Max effort"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Volume</label><input type="text" id="pl-volume" class="inp" placeholder="e.g. 10 reps × 2 sets · 4 min rest"></div>
+          <div class="form-group"><label>Notes</label><input type="text" id="pl-notes" class="inp" placeholder="When to use, progressions, caveats"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="saveProtoLibrary()">Save Protocol</button>
+          <button onclick="document.getElementById('pl-form').style.display='none'" style="border:1px solid #e2e8f0;background:white;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px">Cancel</button>
+        </div>
+        <div id="pl-result" class="mt"></div>
+      </div>
+    </div>
+  </div>
   <!-- Global Protocol Picker Modal -->
   <div id="proto-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;width:500px;max-height:70vh;overflow-y:auto;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,0.15)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -545,6 +604,7 @@ function sp(n,btn){
   if(n==='t'){loadTemplates();}
   if(n==='c'){loadConditioningSquad();}
   if(n==='cp'){loadCondPrograms();}
+  if(n==='pl'){loadProtoLibrary();}
 }
 
 function bx(t,c){return '<span class="b '+c+'">'+t+'</span>';}
@@ -1893,6 +1953,96 @@ function deleteCondProgram() {
   if (!confirm('Delete this conditioning program? This cannot be undone.')) return;
   fetch('/api/conditioning-programs/'+_currentCondProgId, {method:'DELETE'})
     .then(function(){ document.getElementById('cp-detail').style.display='none'; _currentCondProgId=null; loadCondPrograms(); });
+}
+
+
+// Auto-fill conditioning program
+function autoFillCondProgram() {
+  if (!_currentCondProgId) return;
+  if (!confirm('Auto-fill all weeks from the standard template for this mode? This will overwrite any existing sessions.')) return;
+  fetch('/api/conditioning-programs/'+_currentCondProgId+'/autofill', {method:'POST', headers:{'Content-Type':'application/json'}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { alert('Error: '+d.error); }
+      else { loadCondProgWeeks(_currentCondProgId); }
+    });
+}
+
+// Protocol Library
+var _editingProtoId = null;
+
+function loadProtoLibrary() {
+  var cat = document.getElementById('pl-filter') ? document.getElementById('pl-filter').value : '';
+  fetch('/api/conditioning-protocols').then(function(r){return r.json();}).then(function(data){
+    _allProtocols = data; // keep cache fresh
+    var filtered = cat ? data.filter(function(p){ return p.category===cat; }) : data;
+    var catLabels = { on_ice:'🏒 On-Ice', off_ice:'🚴 Off-Ice', assault_bike:'💥 Assault Bike',
+      watt_bike:'⚡ Watt Bike', ski_erg:'🎿 Ski Erg', running:'🏃 Running',
+      slideboard:'↔ Slideboard', circuit:'🔄 Circuit', mixed:'🎯 Mixed' };
+    var catOrder = ['on_ice','off_ice','assault_bike','watt_bike','ski_erg','running','slideboard','circuit','mixed'];
+    filtered.sort(function(a,b){ return catOrder.indexOf(a.category)-catOrder.indexOf(b.category) || a.name.localeCompare(b.name); });
+
+    var el = document.getElementById('pl-list');
+    var h = '';
+    var lastCat = '';
+    filtered.forEach(function(p) {
+      if (p.category !== lastCat) {
+        h += '<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;padding:8px 0 4px;border-top:1px solid #f1f5f9;margin-top:4px">'+(catLabels[p.category]||p.category)+'</div>';
+        lastCat = p.category;
+      }
+      h += '<div class="prog-item" style="padding:8px 10px;margin-bottom:4px">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:start">';
+      h += '<div style="font-weight:600;font-size:12px;flex:1">'+p.name+'</div>';
+      h += '<button data-pid="'+p.id+'" onclick="deleteProto(this.dataset.pid)" style="border:none;background:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0 0 0 8px">×</button>';
+      h += '</div>';
+      if (p.format) h += '<div style="font-size:10px;color:#374151;margin-top:2px">'+p.format+(p.intensity?' · '+p.intensity:'')+'</div>';
+      if (p.volume) h += '<div style="font-size:10px;color:#64748b">'+p.volume+'</div>';
+      if (p.notes) h += '<div style="font-size:9px;color:#94a3b8;font-style:italic">'+p.notes+'</div>';
+      h += '</div>';
+    });
+    if (!h) h = '<div class="em">No protocols found.</div>';
+    el.innerHTML = h;
+  });
+}
+
+function showNewProtoForm() {
+  _editingProtoId = null;
+  document.getElementById('pl-form').style.display = 'block';
+  document.getElementById('pl-form-title').textContent = 'New Protocol';
+  ['pl-name','pl-format','pl-intensity','pl-volume','pl-notes'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('pl-result').style.display = 'none';
+}
+
+function saveProtoLibrary() {
+  var name = document.getElementById('pl-name').value.trim();
+  if (!name) { alert('Enter a protocol name.'); return; }
+  var payload = {
+    name: name,
+    category: document.getElementById('pl-cat').value,
+    format: document.getElementById('pl-format').value || null,
+    intensity: document.getElementById('pl-intensity').value || null,
+    volume: document.getElementById('pl-volume').value || null,
+    notes: document.getElementById('pl-notes').value || null,
+  };
+  var m = document.getElementById('pl-result');
+  m.style.display='block'; m.className='mt'; m.textContent='Saving...';
+  fetch('/api/conditioning-protocols', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
+      else {
+        m.className='mt ok'; m.textContent='Protocol saved!';
+        _allProtocols = []; // clear cache so picker refreshes
+        loadProtoLibrary();
+        document.getElementById('pl-form').style.display='none';
+      }
+    });
+}
+
+function deleteProto(id) {
+  if (!confirm('Delete this protocol?')) return;
+  fetch('/api/conditioning-protocols/'+id, {method:'DELETE'})
+    .then(function(){ _allProtocols=[]; loadProtoLibrary(); });
 }
 
 
