@@ -912,6 +912,151 @@ app.delete('/api/conditioning-programs/:id', async function(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.post('/api/conditioning-programs/:id/autofill', async function(req, res) {
+  try {
+    var progId = req.params.id;
+    var progR = await supabase.from('conditioning_programs').select('*').eq('id', progId).single();
+    if (progR.error) throw progR.error;
+    var prog = progR.data;
+
+    // Get all protocols
+    var protsR = await supabase.from('conditioning_protocols').select('*');
+    if (protsR.error) throw protsR.error;
+    var prots = protsR.data;
+    var byName = {};
+    prots.forEach(function(p){ byName[p.name] = p.id; });
+
+    // Template maps per mode
+    var templates = {
+      assault_bike: [
+        {wk:1, phase:'Base', a:'Continuous aerobic 20 min', b:'Continuous aerobic 20 min', notes:'Conversational pace only'},
+        {wk:2, phase:'Base', a:'Continuous aerobic 30 min', b:'Long intervals 3×8 min', notes:'Aerobic development'},
+        {wk:3, phase:'Build', a:'OFF-ICE 30:30 × 10 reps × 2 sets', b:'Continuous aerobic 20 min', notes:'First 30:30 exposure'},
+        {wk:4, phase:'Build', a:'OFF-ICE 30:30 × 12 reps × 2 sets', b:'OFF-ICE 30:15 × 10 reps × 2 sets', notes:'30:15 preview — test MAP'},
+        {wk:5, phase:'July 1', a:'OFF-ICE 30:30 × 10 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'VIFT test before session'},
+        {wk:6, phase:'July 2', a:'OFF-ICE 30:30 × 12 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Volume step'},
+        {wk:7, phase:'July 3', a:'OFF-ICE 30:30 × 14 reps × 2 sets', b:'OFF-ICE 30:15 × 10 reps × 2 sets', notes:'Peak off-ice volume'},
+        {wk:8, phase:'July 4', a:'OFF-ICE 30:15 × 10 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Retest MAP'},
+        {wk:9, phase:'Sprint Intro', a:'Assault Bike 5 cal × 12 rounds', b:'Easy flush bike 15–20 min', notes:'Max effort each sprint — full rest'},
+        {wk:10, phase:'Sprint Vol', a:'Assault Bike 6 cal × 14 rounds', b:'Easy flush bike 15–20 min', notes:'Add 1 cal and 2 rounds'},
+        {wk:11, phase:'Sprint Vol', a:'Assault Bike 8 cal × 12 rounds', b:'Sled + 5 cal AMRAP circuit', notes:'Blue recovery between sprints'},
+        {wk:12, phase:'Sprint Build', a:'Assault Bike 8 cal × 12 rounds', b:'Assault Bike 30 cal × 3 rounds', notes:'30 cal introduced — time each set'},
+        {wk:13, phase:'Sprint Peak', a:'Assault Bike 10 cal × 12 rounds', b:'Assault Bike 30 cal × 3 rounds', notes:'Highest sprint volume week'},
+        {wk:14, phase:'Sprint Peak', a:'Assault Bike 10 cal × 12 rounds', b:'Assault Bike 35 cal × 2 rounds', notes:'35 cal max effort — honest pace'},
+        {wk:15, phase:'Complex', a:'Assault Bike 30/35 cal complex', b:'MB shuffle/slam circuit', notes:'Most complex session — gut check'},
+        {wk:16, phase:'Complex', a:'Assault Bike 30/35 cal complex', b:'.5 mile repeats', notes:'Complex format + aerobic power'},
+        {wk:17, phase:'Peak', a:'Assault Bike 35 cal × 2 rounds', b:'MB shuffle/slam circuit', notes:'Peak lactic output week'},
+        {wk:18, phase:'Peak', a:'Assault Bike 30/35 cal complex', b:'Easy flush bike 15–20 min', notes:'Final complex session'},
+        {wk:19, phase:'On-Ice', a:'ON-ICE Lactic Power', b:'Easy flush bike 15–20 min', notes:'Maximum lactic output — 2 days rest after'},
+        {wk:20, phase:'Taper', a:'ON-ICE Taper 30:15 × 8 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Volume -35% · intensity maintained · retest VIFT'},
+      ],
+      watt_bike: [
+        {wk:1, phase:'Base', a:'Watt Bike Z2 Steady State', b:'Watt Bike Z2 Steady State', notes:'FTP test before Week 1'},
+        {wk:2, phase:'Base', a:'Watt Bike Z2 Steady State', b:'Watt Bike Z3 Tempo', notes:'Aerobic + threshold intro'},
+        {wk:3, phase:'Build', a:'Watt Bike 4×4 Intervals', b:'Watt Bike Z2 Steady State', notes:'First VO2max stimulus'},
+        {wk:4, phase:'Build', a:'Watt Bike 4×4 Intervals', b:'Watt Bike 8×2 Intervals', notes:'Two interval formats'},
+        {wk:5, phase:'MAP', a:'Watt Bike 30:30 × 10 × 2', b:'Watt Bike Z2 Steady State', notes:'MAP phase begins'},
+        {wk:6, phase:'MAP', a:'Watt Bike 30:30 × 10 × 2', b:'Watt Bike 8×2 Intervals', notes:'Volume step'},
+        {wk:7, phase:'MAP', a:'Watt Bike 30:15 × 10 × 2', b:'Watt Bike 4×4 Intervals', notes:'30:15 introduced'},
+        {wk:8, phase:'MAP Peak', a:'Watt Bike 30:15 × 10 × 2', b:'Watt Bike Z3 Tempo', notes:'Retest FTP'},
+        {wk:9, phase:'Sprint', a:'Watt Bike 6s Sprint × 8', b:'Watt Bike Z2 Steady State', notes:'Neuromuscular — full rest'},
+        {wk:10, phase:'Sprint', a:'Watt Bike 6s Sprint × 8', b:'Watt Bike 30:30 × 10 × 2', notes:'Sprint + MAP combo'},
+        {wk:11, phase:'Sprint Build', a:'Watt Bike Wingate 30s × 3', b:'Watt Bike 30:15 × 10 × 2', notes:'Anaerobic capacity'},
+        {wk:12, phase:'Sprint Build', a:'Watt Bike Wingate 30s × 3', b:'Watt Bike 4×4 Intervals', notes:'Peak sprint volume'},
+        {wk:13, phase:'Peak', a:'Watt Bike Tabata', b:'Watt Bike 30:15 × 10 × 2', notes:'Supramaximal + MAP'},
+        {wk:14, phase:'Peak', a:'Watt Bike Tabata', b:'Watt Bike Wingate 30s × 3', notes:'Peak intensity week'},
+        {wk:15, phase:'Taper', a:'Watt Bike 30:15 × 10 × 2', b:'Watt Bike Z2 Steady State', notes:'Volume -30% · intensity held'},
+        {wk:16, phase:'Taper', a:'Watt Bike 4×4 Intervals', b:'Watt Bike Z2 Steady State', notes:'Maintain sharpness'},
+      ],
+      ski_erg: [
+        {wk:1, phase:'Base', a:'Ski Erg Z2 Continuous', b:'Ski Erg Z2 Continuous', notes:'4-min test before Week 1'},
+        {wk:2, phase:'Base', a:'Ski Erg Z2 Continuous', b:'Ski Erg 1000m × 4 Intervals', notes:'Threshold intro'},
+        {wk:3, phase:'Build', a:'Ski Erg 500m × 6 Intervals', b:'Ski Erg Z2 Continuous', notes:'Pace work begins'},
+        {wk:4, phase:'Build', a:'Ski Erg 500m × 6 Intervals', b:'Ski Erg 1000m × 4 Intervals', notes:'Volume build'},
+        {wk:5, phase:'MAP', a:'Ski Erg 30:30 × 8 × 2', b:'Ski Erg Z2 Continuous', notes:'MAP phase'},
+        {wk:6, phase:'MAP', a:'Ski Erg 30:30 × 8 × 2', b:'Ski Erg 500m × 6 Intervals', notes:'MAP + threshold combo'},
+        {wk:7, phase:'MAP', a:'Ski Erg 20:10 × 10 × 2', b:'Ski Erg 1000m × 4 Intervals', notes:'20:10 introduced'},
+        {wk:8, phase:'Peak', a:'Ski Erg 10s Pulls × 10', b:'Ski Erg 20:10 × 10 × 2', notes:'Peak power + MAP'},
+        {wk:9, phase:'Taper', a:'Ski Erg 500m × 6 Intervals', b:'Ski Erg Z2 Continuous', notes:'Volume -30%'},
+      ],
+      running: [
+        {wk:1, phase:'Base', a:'Running Z2 Easy', b:'Running Z2 Easy', notes:'1.5-mile test before Week 1'},
+        {wk:2, phase:'Base', a:'Running Z2 Easy', b:'Running Tempo 20 min', notes:'Threshold intro'},
+        {wk:3, phase:'Build', a:'Running 800m × 6', b:'Running Z2 Easy', notes:'VO2max pace work'},
+        {wk:4, phase:'Build', a:'Running 800m × 6', b:'Running Tempo 20 min', notes:'Volume step'},
+        {wk:5, phase:'Speed', a:'Running 400m × 10', b:'Running Z2 Easy', notes:'Speed endurance'},
+        {wk:6, phase:'Speed', a:'Running 400m × 10', b:'Running Hill Repeats 8×', notes:'Power + speed'},
+        {wk:7, phase:'Peak', a:'Running 200m × 12', b:'Running 800m × 6', notes:'Speed + VO2max combo'},
+        {wk:8, phase:'Peak', a:'Running 400m × 10', b:'Running Tempo 20 min', notes:'Peak running week'},
+        {wk:9, phase:'Taper', a:'Running 800m × 6', b:'Running Z2 Easy', notes:'Volume -30%'},
+      ],
+      slideboard: [
+        {wk:1, phase:'Base', a:'Slideboard Continuous 20 min', b:'Slideboard Continuous 20 min', notes:'Foundation — hip ADD activation'},
+        {wk:2, phase:'Base', a:'Slideboard Continuous 20 min', b:'Slideboard 30:30 × 10 × 2', notes:'First interval exposure'},
+        {wk:3, phase:'Build', a:'Slideboard 30:30 × 10 × 2', b:'Slideboard Continuous 20 min', notes:'Interval focus'},
+        {wk:4, phase:'Build', a:'Slideboard 30:30 × 10 × 2', b:'Slideboard 15:15 × 12 × 2', notes:'15:15 introduced'},
+        {wk:5, phase:'Peak', a:'Slideboard 15:15 × 12 × 2', b:'Slideboard 30:30 × 10 × 2', notes:'Peak slideboard volume'},
+        {wk:6, phase:'Peak', a:'Slideboard Lactic 45s × 6', b:'Slideboard 15:15 × 12 × 2', notes:'Lactic capacity'},
+        {wk:7, phase:'Taper', a:'Slideboard 30:30 × 10 × 2', b:'Slideboard Continuous 20 min', notes:'Volume -30%'},
+      ],
+      on_ice: [
+        {wk:1, phase:'July 1', a:'ON-ICE 30:30 × 10 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'VIFT test before session'},
+        {wk:2, phase:'July 2', a:'ON-ICE 30:30 × 12 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Volume step'},
+        {wk:3, phase:'July 3', a:'ON-ICE Mixed 30:30+30:15', b:'Easy flush bike 15–20 min', notes:'30:15 intro'},
+        {wk:4, phase:'July 4', a:'ON-ICE 30:15 × 10 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Retest VIFT'},
+        {wk:5, phase:'Aug 1', a:'ON-ICE 30:15 × 10 reps × 2 sets', b:'ON-ICE 30:30 × 10 reps × 2 sets', notes:'Both days on-ice'},
+        {wk:6, phase:'Aug 2', a:'ON-ICE 30:15 × 12 reps × 2 sets', b:'ON-ICE 30:30 × 12 reps × 2 sets', notes:'Volume step'},
+        {wk:7, phase:'Aug 3', a:'ON-ICE 30:15 × 12 reps × 2 sets', b:'ON-ICE 30:15 × 10 reps × 2 sets', notes:'Both days 30:15'},
+        {wk:8, phase:'Aug Peak', a:'ON-ICE 30:15 × 12 reps × 3 sets', b:'ON-ICE 30:15 × 10 reps × 2 sets', notes:'Retest VIFT · peak load'},
+        {wk:9, phase:'Taper', a:'ON-ICE Taper 30:15 × 8 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Volume -35% · intensity held'},
+      ],
+      mixed: [
+        {wk:1, phase:'Base', a:'Continuous aerobic 20 min', b:'Slideboard Continuous 20 min', notes:'Multi-modal base'},
+        {wk:2, phase:'Base', a:'Mixed: Assault Bike + Slideboard', b:'Running Z2 Easy', notes:'Cross-modal aerobic'},
+        {wk:3, phase:'Build', a:'OFF-ICE 30:30 × 10 reps × 2 sets', b:'Slideboard 30:30 × 10 × 2', notes:'MAP on two modalities'},
+        {wk:4, phase:'Build', a:'Mixed: Ski Erg + Assault Bike', b:'Running 800m × 6', notes:'Full body MAP + running'},
+        {wk:5, phase:'MAP', a:'OFF-ICE 30:30 × 12 reps × 2 sets', b:'Mixed: Run + Slideboard', notes:'Peak MAP volume'},
+        {wk:6, phase:'MAP', a:'Watt Bike 30:30 × 10 × 2', b:'Slideboard 15:15 × 12 × 2', notes:'Watt bike + slideboard'},
+        {wk:7, phase:'Sprint', a:'Assault Bike 8 cal × 12 rounds', b:'Mixed: Assault Bike + Slideboard', notes:'Sprint + aerobic combo'},
+        {wk:8, phase:'Sprint', a:'Assault Bike 30 cal × 3 rounds', b:'Running 400m × 10', notes:'Lactic + speed endurance'},
+        {wk:9, phase:'Peak', a:'Mixed: On-Ice + Bike Flush', b:'Assault Bike 35 cal × 2 rounds', notes:'On-ice + max sprint'},
+        {wk:10, phase:'Taper', a:'ON-ICE Taper 30:15 × 8 reps × 2 sets', b:'Easy flush bike 15–20 min', notes:'Volume -35% · arrive fresh'},
+      ],
+    };
+
+    var plan = templates[prog.mode] || [];
+    var weeks = prog.weeks;
+
+    // Pad or trim to match program length
+    while (plan.length < weeks) {
+      plan.push({ wk: plan.length+1, phase: 'Maintenance', a: null, b: null, notes: 'Coach to assign' });
+    }
+    plan = plan.slice(0, weeks);
+
+    // Get existing week rows
+    var wkR = await supabase.from('conditioning_program_weeks').select('id,week_number').eq('program_id', progId).order('week_number');
+    if (wkR.error) throw wkR.error;
+
+    // Update each week
+    for (var i = 0; i < wkR.data.length; i++) {
+      var wk = wkR.data[i];
+      var tpl = plan.find(function(p){ return p.wk === wk.week_number; });
+      if (!tpl) continue;
+      await supabase.from('conditioning_program_weeks').update({
+        phase: tpl.phase || null,
+        session_a_protocol_id: tpl.a ? (byName[tpl.a] || null) : null,
+        session_a_custom: null,
+        session_b_protocol_id: tpl.b ? (byName[tpl.b] || null) : null,
+        session_b_custom: null,
+        notes: tpl.notes || null,
+      }).eq('id', wk.id);
+    }
+
+    res.json({ ok: true, filled: plan.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/exercises', async function(req, res) {
   try {
     var cat = req.query.category || null;
