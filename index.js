@@ -1168,17 +1168,22 @@ app.get('/api/conditioning-logs', async function(req, res) {
 // Dashboard conditioning summary — current week status per athlete
 app.get('/api/conditioning/dashboard', async function(req, res) {
   try {
-    // Get all active assignments
+    // Step 1: get all active assignments
     var assignR = await supabase.from('athlete_conditioning_programs')
-      .select('athlete_id, program_id, conditioning_programs(id,name,mode,weeks,start_date,current_week), athletes(first_name,last_name,position)')
-      .eq('active', true);
+      .select('athlete_id, program_id').eq('active', true);
     if (assignR.error) throw assignR.error;
+    if (!assignR.data.length) { res.json([]); return; }
 
     var results = [];
     for (var i = 0; i < assignR.data.length; i++) {
       var row = assignR.data[i];
-      var prog = row.conditioning_programs;
-      if (!prog) continue;
+
+      // Get athlete
+      var athR = await supabase.from('athletes').select('first_name,last_name,position').eq('id', row.athlete_id).single();
+      // Get program
+      var progR = await supabase.from('conditioning_programs').select('id,name,mode,weeks,start_date,current_week').eq('id', row.program_id).single();
+      if (progR.error || !progR.data) continue;
+      var prog = progR.data;
 
       var currentWeek = prog.current_week || 1;
       if (prog.start_date) {
@@ -1188,26 +1193,35 @@ app.get('/api/conditioning/dashboard', async function(req, res) {
         currentWeek = Math.min(Math.max(1, diffWeeks+1), prog.weeks);
       }
 
-      // Get current week sessions
+      // Get current week protocol name
       var wkR = await supabase.from('conditioning_program_weeks')
-        .select('id, session_a_custom, session_b_custom, conditioning_protocols!conditioning_program_weeks_session_a_protocol_id_fkey(name)')
-        .eq('program_id', prog.id).eq('week_number', currentWeek).single();
+        .select('id,session_a_custom,session_a_protocol_id')
+        .eq('program_id', prog.id).eq('week_number', currentWeek).maybeSingle();
 
-      // Check if logged this week
+      var nextSession = 'No session assigned';
+      if (wkR.data) {
+        if (wkR.data.session_a_custom) {
+          nextSession = wkR.data.session_a_custom;
+        } else if (wkR.data.session_a_protocol_id) {
+          var protoR = await supabase.from('conditioning_protocols').select('name').eq('id', wkR.data.session_a_protocol_id).single();
+          if (!protoR.error) nextSession = protoR.data.name;
+        }
+      }
+
+      // Count logs
       var logR = await supabase.from('conditioning_session_logs')
-        .select('slot,status').eq('athlete_id', row.athlete_id).eq('program_id', prog.id);
-
-      var sessionsDone = logR.data ? logR.data.filter(function(l){ return l.status !== 'skipped'; }).length : 0;
+        .select('id').eq('athlete_id', row.athlete_id).eq('program_id', prog.id).neq('status','skipped');
+      var sessionsDone = logR.data ? logR.data.length : 0;
 
       results.push({
         athlete_id: row.athlete_id,
-        name: row.athletes ? row.athletes.first_name+' '+row.athletes.last_name : '',
-        position: row.athletes ? row.athletes.position : '',
+        name: athR.data ? athR.data.first_name+' '+athR.data.last_name : '',
+        position: athR.data ? athR.data.position : '',
         program_name: prog.name,
         program_mode: prog.mode,
         current_week: currentWeek,
         total_weeks: prog.weeks,
-        next_session: wkR.data ? (wkR.data['conditioning_protocols'] ? wkR.data['conditioning_protocols'].name : wkR.data.session_a_custom || 'See program') : 'No session assigned',
+        next_session: nextSession,
         sessions_logged: sessionsDone,
       });
     }
@@ -1276,10 +1290,8 @@ app.post('/api/athletes', async function(req, res) {
       last_name: b.last_name,
       position: b.position || null,
       sport: b.sport || 'Hockey',
-      jersey_number: b.jersey_number || null,
+      jersey_number: b.jersey_number ? String(b.jersey_number) : null,
       date_of_birth: b.date_of_birth || null,
-      height_cm: b.height_cm || null,
-      weight_kg: b.weight_kg || null,
       load_status: b.load_status || 'Normal',
       notes: b.notes || null,
     }).select();
@@ -1293,7 +1305,7 @@ app.patch('/api/athletes/:id', async function(req, res) {
     var b = req.body;
     var updates = {};
     ['first_name','last_name','position','sport','jersey_number','date_of_birth',
-     'height_cm','weight_kg','load_status','notes'].forEach(function(k) {
+     'load_status','notes'].forEach(function(k) {
       if (b[k] !== undefined) updates[k] = b[k];
     });
     var r = await supabase.from('athletes').update(updates).eq('id', req.params.id).select();
@@ -1329,11 +1341,12 @@ app.post('/api/loads', async function(req, res) {
       athlete_id: b.athlete_id,
       session_date: b.session_date,
       session_type: b.session_type || null,
+      session_name: b.session_name || b.session_type || null,
       rpe: b.rpe || null,
       duration_min: b.duration_min || null,
       session_load: b.rpe && b.duration_min ? b.rpe * b.duration_min : b.session_load || null,
       total_distance_m: b.total_distance_m || null,
-      notes: b.notes || null,
+      source: 'manual',
     }).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
