@@ -1545,18 +1545,23 @@ app.post('/api/videos/import', async function(req, res) {
         var exName = exercises[j].name.toLowerCase();
         // Exact match
         if (exName === cleanName) { bestMatch = exercises[j]; bestScore = 1; break; }
-        // Contains match
+        // Strong contains match — one must contain the other substantially
         if (exName.includes(cleanName) || cleanName.includes(exName)) {
           var score = Math.min(exName.length, cleanName.length) / Math.max(exName.length, cleanName.length);
-          if (score > bestScore) { bestScore = score; bestMatch = exercises[j]; }
+          if (score > bestScore && score >= 0.6) { bestScore = score; bestMatch = exercises[j]; }
         }
-        // Word overlap
-        var exWords = exName.split(/\s+/);
-        var vidWords = cleanName.split(/\s+/);
-        var overlap = exWords.filter(function(w){ return vidWords.includes(w) && w.length > 2; }).length;
-        if (overlap > 0) {
-          var score2 = overlap / Math.max(exWords.length, vidWords.length);
-          if (score2 > bestScore) { bestScore = score2; bestMatch = exercises[j]; }
+        // Word overlap — ALL significant words must match, not just some
+        var exWords = exName.split(/\s+/).filter(function(w){ return w.length > 2; });
+        var vidWords = cleanName.split(/\s+/).filter(function(w){ return w.length > 2; });
+        if (exWords.length > 0 && vidWords.length > 0) {
+          var overlap = vidWords.filter(function(w){ return exWords.includes(w); }).length;
+          // Require ALL video words to appear in exercise name, or vice versa
+          var allVidWordsMatch = overlap === vidWords.length;
+          var allExWordsMatch = overlap === exWords.length;
+          if (allVidWordsMatch || allExWordsMatch) {
+            var score3 = overlap / Math.max(exWords.length, vidWords.length);
+            if (score3 > bestScore) { bestScore = score3; bestMatch = exercises[j]; }
+          }
         }
       }
 
@@ -1618,6 +1623,27 @@ app.patch('/api/exercises/:id', async function(req, res) {
     if (req.body.name !== undefined) updates.name = req.body.name;
     if (req.body.category !== undefined) updates.category = req.body.category;
     var r = await supabase.from('exercises').update(updates).eq('id', req.params.id).select();
+    if (r.error) throw r.error;
+    res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.post('/api/exercises', async function(req, res) {
+  try {
+    var b = req.body;
+    var fileId = null;
+    if (b.video_url) {
+      var m = b.video_url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m) fileId = m[1];
+    }
+    var r = await supabase.from('exercises').insert({
+      name: b.name,
+      category: b.category || 'Hip',
+      equipment: b.equipment || null,
+      video_url: b.video_url ? 'https://drive.google.com/file/d/'+fileId+'/preview' : null,
+      video_file_id: fileId,
+    }).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
