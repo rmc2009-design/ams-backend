@@ -10,29 +10,57 @@ const app = express();
 app.use(express.json());
 
 // ============================================================
-// PASSWORD PROTECTION (HTTP Basic Auth)
+// PASSWORD PROTECTION (Cookie-based login)
 // ============================================================
+const crypto = require('crypto');
+var AMS_USER = process.env.AMS_USERNAME || 'rmc35';
+var AMS_PASS = process.env.AMS_PASSWORD || 'LCADetroit313!';
+var SESSION_TOKEN = crypto.createHash('sha256').update(AMS_USER + ':' + AMS_PASS + ':ams-salt-2026').digest('hex');
+
+function parseCookies(req) {
+  var list = {};
+  var rc = req.headers.cookie;
+  if (!rc) return list;
+  rc.split(';').forEach(function(cookie) {
+    var parts = cookie.split('=');
+    var key = parts.shift().trim();
+    if (key) list[key] = decodeURIComponent(parts.join('='));
+  });
+  return list;
+}
+
+app.get('/login', function(req, res) {
+  var err = req.query.error ? '<div style="color:#dc2626;font-size:13px;margin-bottom:12px">Invalid username or password.</div>' : '';
+  res.send('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AMS Login</title>' +
+    '<style>body{font-family:Arial,sans-serif;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}' +
+    '.box{background:white;border-radius:10px;padding:32px;width:320px;box-shadow:0 10px 40px rgba(0,0,0,0.3)}' +
+    'h1{font-size:18px;margin:0 0 20px;color:#0f172a}' +
+    'input{width:100%;padding:10px 12px;margin-bottom:12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;box-sizing:border-box}' +
+    'button{width:100%;padding:11px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600}' +
+    '</style></head><body><div class="box"><h1>Athlete Management System</h1>' + err +
+    '<form method="POST" action="/login">' +
+    '<input type="text" name="username" placeholder="Username" autofocus required>' +
+    '<input type="password" name="password" placeholder="Password" required>' +
+    '<button type="submit">Sign In</button>' +
+    '</form></div></body></html>');
+});
+
+app.post('/login', express.urlencoded({ extended: true }), function(req, res) {
+  if (req.body.username === AMS_USER && req.body.password === AMS_PASS) {
+    res.setHeader('Set-Cookie', 'ams_session=' + SESSION_TOKEN + '; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax');
+    return res.redirect('/');
+  }
+  return res.redirect('/login?error=1');
+});
+
 app.use(function(req, res, next) {
-  var authHeader = req.headers.authorization;
-  var validUser = process.env.AMS_USERNAME || 'rmc35';
-  var validPass = process.env.AMS_PASSWORD || 'LCADetroit313!';
+  if (req.path === '/login') return next();
+  var cookies = parseCookies(req);
+  if (cookies.ams_session === SESSION_TOKEN) return next();
 
-  if (!authHeader) {
-    res.set('WWW-Authenticate', 'Basic realm="AMS"');
-    return res.status(401).send('Authentication required.');
-  }
-
-  var credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
-  var parts = credentials.split(':');
-  var user = parts[0];
-  var pass = parts.slice(1).join(':');
-
-  if (user === validUser && pass === validPass) {
-    return next();
-  }
-
-  res.set('WWW-Authenticate', 'Basic realm="AMS"');
-  return res.status(401).send('Invalid credentials.');
+  var wantsHtml = (req.headers.accept || '').includes('text/html');
+  if (wantsHtml) return res.redirect('/login');
+  return res.status(401).json({ error: 'Unauthorized' });
 });
 
 
