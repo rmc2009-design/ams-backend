@@ -9,6 +9,33 @@ const XLSX = require('xlsx');
 const app = express();
 app.use(express.json());
 
+// ============================================================
+// PASSWORD PROTECTION (HTTP Basic Auth)
+// ============================================================
+app.use(function(req, res, next) {
+  var authHeader = req.headers.authorization;
+  var validUser = process.env.AMS_USERNAME || 'rmc35';
+  var validPass = process.env.AMS_PASSWORD || 'LCADetroit313!';
+
+  if (!authHeader) {
+    res.set('WWW-Authenticate', 'Basic realm="AMS"');
+    return res.status(401).send('Authentication required.');
+  }
+
+  var credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
+  var parts = credentials.split(':');
+  var user = parts[0];
+  var pass = parts.slice(1).join(':');
+
+  if (user === validUser && pass === validPass) {
+    return next();
+  }
+
+  res.set('WWW-Authenticate', 'Basic realm="AMS"');
+  return res.status(401).send('Invalid credentials.');
+});
+
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY,
@@ -1646,6 +1673,15 @@ app.post('/api/exercises', async function(req, res) {
     }).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.delete('/api/exercises/:id', async function(req, res) {
+  try {
+    var r = await supabase.from('exercises').delete().eq('id', req.params.id);
+    if (r.error) throw r.error;
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
