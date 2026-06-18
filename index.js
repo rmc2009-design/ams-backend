@@ -1559,11 +1559,10 @@ app.post('/api/videos/import', async function(req, res) {
       var link = links[i].trim();
       if (!link) continue;
 
-      // Extract file ID from Drive URL
-      var fileId = null;
-      var m = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (m) fileId = m[1];
-      if (!fileId) { results.errors.push(link); continue; }
+      // Extract file ID from Drive or YouTube URL
+      var built0 = buildEmbedUrl(link);
+      var fileId = built0.fileId;
+      if (!built0.embedUrl) { results.errors.push(link); continue; }
 
       // Get filename from Drive
       var fileName = req.body.names ? req.body.names[i] : null;
@@ -1620,7 +1619,7 @@ app.post('/api/videos/import', async function(req, res) {
         }
       }
 
-      var videoUrl = 'https://drive.google.com/file/d/'+fileId+'/preview';
+      var videoUrl = built0.embedUrl;
 
       if (bestMatch && bestScore >= 0.4) {
         await supabase.from('exercises').update({
@@ -1641,13 +1640,10 @@ app.post('/api/videos/import', async function(req, res) {
 // Manually link a video to an exercise
 app.patch('/api/exercises/:id/video', async function(req, res) {
   try {
-    var fileId = null;
-    var m = req.body.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (m) fileId = m[1];
-    var videoUrl = fileId ? 'https://drive.google.com/file/d/'+fileId+'/preview' : req.body.url;
+    var built = buildEmbedUrl(req.body.url);
     var r = await supabase.from('exercises').update({
-      video_url: videoUrl,
-      video_file_id: fileId,
+      video_url: built.embedUrl,
+      video_file_id: built.fileId,
     }).eq('id', req.params.id).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
@@ -1669,11 +1665,14 @@ app.patch('/api/exercises/:id', async function(req, res) {
   try {
     var updates = {};
     if (req.body.video_url !== undefined) {
-      var fileId = null;
-      var m = (req.body.video_url||'').match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (m) fileId = m[1];
-      updates.video_url = fileId ? 'https://drive.google.com/file/d/'+fileId+'/preview' : req.body.video_url;
-      updates.video_file_id = fileId;
+      if (req.body.video_url) {
+        var built = buildEmbedUrl(req.body.video_url);
+        updates.video_url = built.embedUrl;
+        updates.video_file_id = built.fileId;
+      } else {
+        updates.video_url = null;
+        updates.video_file_id = null;
+      }
     }
     if (req.body.name !== undefined) updates.name = req.body.name;
     if (req.body.category !== undefined) updates.category = req.body.category;
@@ -1684,20 +1683,32 @@ app.patch('/api/exercises/:id', async function(req, res) {
 });
 
 
+function buildEmbedUrl(rawUrl) {
+  if (!rawUrl) return { embedUrl: null, fileId: null };
+  // Google Drive
+  var driveMatch = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) {
+    return { embedUrl: 'https://drive.google.com/file/d/'+driveMatch[1]+'/preview', fileId: driveMatch[1] };
+  }
+  // YouTube — youtube.com/watch?v=ID or youtu.be/ID or youtube.com/embed/ID or unlisted shorts
+  var ytMatch = rawUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]+)/);
+  if (ytMatch) {
+    return { embedUrl: 'https://www.youtube.com/embed/'+ytMatch[1], fileId: ytMatch[1] };
+  }
+  // Fallback — store as-is
+  return { embedUrl: rawUrl, fileId: null };
+}
+
 app.post('/api/exercises', async function(req, res) {
   try {
     var b = req.body;
-    var fileId = null;
-    if (b.video_url) {
-      var m = b.video_url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (m) fileId = m[1];
-    }
+    var built = buildEmbedUrl(b.video_url);
     var r = await supabase.from('exercises').insert({
       name: b.name,
       category: b.category || 'Hip',
       equipment: b.equipment || null,
-      video_url: b.video_url ? 'https://drive.google.com/file/d/'+fileId+'/preview' : null,
-      video_file_id: fileId,
+      video_url: built.embedUrl,
+      video_file_id: built.fileId,
     }).select();
     if (r.error) throw r.error;
     res.json(r.data[0]);
