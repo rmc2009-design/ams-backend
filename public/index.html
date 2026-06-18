@@ -775,7 +775,7 @@ tr:last-child td { border-bottom:none; }
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input type="text" id="qa-url" class="inp" placeholder="Paste Google Drive link..." style="flex:2;margin-bottom:0">
+            <input type="text" id="qa-url" class="inp" placeholder="Paste Google Drive or YouTube link..." style="flex:2;margin-bottom:0">
             <select id="qa-cat" class="sel" style="margin-bottom:0;flex:1">
               <option value="Hip">Hip</option>
               <option value="Lower Body">Lower Body</option>
@@ -806,10 +806,28 @@ tr:last-child td { border-bottom:none; }
       <div class="card" id="video-detail" style="display:none">
         <h3 id="video-detail-name"></h3>
         <div id="video-player" style="margin-bottom:16px"></div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:8px">Update video link:</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px">Exercise name:</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input type="text" id="video-name-input" class="inp" placeholder="Exercise name..." style="margin-bottom:0">
+          <select id="video-cat-input" class="sel" style="margin-bottom:0;width:140px">
+            <option value="Hip">Hip</option>
+            <option value="Lower Body">Lower Body</option>
+            <option value="Posterior Chain">Posterior Chain</option>
+            <option value="Core">Core</option>
+            <option value="Upper Body">Upper Body</option>
+            <option value="Glute">Glute</option>
+            <option value="Power">Power</option>
+            <option value="Conditioning">Conditioning</option>
+            <option value="Recovery">Recovery</option>
+          </select>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px">Video link:</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="video-url-input" class="inp" placeholder="Paste Google Drive or YouTube link..." style="margin-bottom:0">
+        </div>
         <div style="display:flex;gap:8px">
-          <input type="text" id="video-url-input" class="inp" placeholder="Paste Google Drive share link...">
-          <button class="btn" onclick="saveVideoLink()" style="white-space:nowrap">Save</button>
+          <button class="btn" onclick="saveVideoDetail()">Save Changes</button>
+          <button onclick="deleteExercise()" style="border:none;background:#fee2e2;color:#991b1b;padding:9px 14px;border-radius:6px;cursor:pointer;font-size:13px">Delete Exercise</button>
         </div>
         <div id="video-save-result" class="mt"></div>
       </div>
@@ -2854,6 +2872,8 @@ function showVideoDetail(exId) {
   var card = document.getElementById('video-detail');
   card.style.display = 'block';
   document.getElementById('video-detail-name').textContent = ex.name;
+  document.getElementById('video-name-input').value = ex.name || '';
+  document.getElementById('video-cat-input').value = ex.category || 'Hip';
   document.getElementById('video-url-input').value = ex.video_url || '';
   document.getElementById('video-save-result').style.display = 'none';
 
@@ -2865,23 +2885,38 @@ function showVideoDetail(exId) {
   }
 }
 
-function saveVideoLink() {
+function saveVideoDetail() {
   if (!_currentVideoExId) return;
+  var name = document.getElementById('video-name-input').value.trim();
   var url = document.getElementById('video-url-input').value.trim();
+  var cat = document.getElementById('video-cat-input').value;
+  if (!name) { alert('Enter an exercise name.'); return; }
   var m = document.getElementById('video-save-result');
   m.style.display='block'; m.className='mt'; m.textContent='Saving...';
   fetch('/api/exercises/'+_currentVideoExId, {
     method:'PATCH', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({video_url: url})
+    body:JSON.stringify({name: name, category: cat, video_url: url || null})
   }).then(function(r){return r.json();}).then(function(d){
     if (d.error) { m.className='mt er'; m.textContent='Error: '+d.error; }
     else {
-      m.className='mt ok'; m.textContent='Video saved!';
-      _allExercises = []; // clear cache
+      m.className='mt ok'; m.textContent='Saved!';
+      document.getElementById('video-detail-name').textContent = name;
+      _allExercises=[];
       loadVideoLibrary();
-      showVideoDetail(_currentVideoExId);
     }
   });
+}
+
+function deleteExercise() {
+  if (!_currentVideoExId) return;
+  if (!confirm('Delete this exercise from the library? This cannot be undone.')) return;
+  fetch('/api/exercises/'+_currentVideoExId, {method:'DELETE'})
+    .then(function(){
+      document.getElementById('video-detail').style.display='none';
+      _currentVideoExId = null;
+      _allExercises=[];
+      loadVideoLibrary();
+    });
 }
 
 function importVideos() {
