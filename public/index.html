@@ -1523,6 +1523,9 @@ function doBlockSwap(templateId) {
 
 function printProgram() {
   if (!currentProgramId) return;
+  ensureExercisesLoaded(function(){ _doPrint(); });
+}
+function _doPrint() {
   var programTitle = document.getElementById('program-title').textContent;
   var athleteSel = document.getElementById('w-athlete');
   var athlete = athleteSel.options[athleteSel.selectedIndex].text;
@@ -1558,7 +1561,10 @@ function printProgram() {
               if (progs[p].weight) weight = progs[p].weight;
             }
           }
-          h += '<tr><td>'+ex.exercise_name+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
+          var vidUrl = getVideoForExercise(ex.exercise_name);
+          var exDisplay = ex.exercise_name;
+          if (vidUrl) exDisplay = '<a href="'+vidUrl+'" style="color:#1e40af;text-decoration:none" target="_blank">'+ex.exercise_name+' ▶</a>';
+          h += '<tr><td>'+exDisplay+'</td><td>'+(ex.sets||'-')+'</td><td>'+(ex.tempo||'-')+'</td><td>'+(ex.rest||'-')+'</td>';
           h += '<td>'+reps[1]+'</td><td>'+reps[2]+'</td><td>'+reps[3]+'</td><td>'+reps[4]+'</td><td>'+weight+'</td></tr>';
         }
         h += '</tbody></table>';
